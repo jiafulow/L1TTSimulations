@@ -56,15 +56,17 @@ vertexmap_cyl = {}
 moduleIds_set = set()
 min_rho, max_rho = 9999, -9999
 for moduleId, xyz in vertexmap.iteritems():
+    if moduleId < 0:  continue
+    moduleIds_set.add(moduleId)
+
     cyl = convert_xyz_to_cyl(xyz)
     vertexmap_cyl[moduleId] = cyl
-    if moduleId > 0:
-        moduleIds_set.add(moduleId)
+
     if min_rho > average(cyl[0::3]):
         min_rho = average(cyl[0::3])
     if max_rho < average(cyl[0::3]):
         max_rho = average(cyl[0::3])
-print "min_rho, max_rho = %.4f, %.4f" % (min_rho, max_rho)
+#print "min_rho, max_rho = %.4f, %.4f" % (min_rho, max_rho)
 
 # Get the trajectories in the physical space of a trigger tower
 def get_trajectories(tt, min_pt=2., max_vz=7., max_rho=110., debug=False):
@@ -76,67 +78,111 @@ def get_trajectories(tt, min_pt=2., max_vz=7., max_rho=110., debug=False):
     invPt = 1.0/float(min_pt)
 
     # Magic numbers from tklayout
-    #tklayout_phi_magic = pi/24
-    tklayout_phi_magic = pi/16
-    tklayout_z_magic = max_vz/max_rho
+    #tklayout_phi_magic = pi/16
+    #tklayout_z_magic = max_vz/max_rho
 
     # Magic numbers translated into rstar
-    rstar = sin(tklayout_phi_magic) / mPtFactor / invPt
-    rstar_z = max_vz/tklayout_z_magic
+    #rstar = sin(tklayout_phi_magic) / mPtFactor / invPt
+    #rstar_z = max_vz/tklayout_z_magic
+    #rstar = 63.4
+    #rstar_z = max_rho
+    rstar = 76.5
+    rstar_z = 53.0
 
     if debug:  print "min_pt={0} max_vz={1} max_rho={2}".format(min_pt, max_vz, max_rho)
     if debug:  print "phimin={0:.4f} phimax={1:.4f} etamin={2:.4f} etamax={3:.4f} cotmin={4:.4f} cotmax={5:.4f}".format(phimin, phimax, etamin, etamax, cotmin, cotmax)
+    if debug:  print "rstar={0:.4f} rstar_z={1:.4f}".format(rstar, rstar_z)
 
     # Define the trajectories
-    def traj_phimin(r):
+    def traj_phimin_1(r):
         deltaPhi = - asin(mPtFactor * (r-rstar) * invPt)
         phi = phimin + deltaPhi
         if phi > +pi:  phi -= 2*pi
         if phi < -pi:  phi += 2*pi
         return phi
 
-    def traj_phimax(r):
+    def traj_phimin_2(r):
+        deltaPhi = - asin(mPtFactor * (r-rstar) * invPt)
+        #deltaPhi = 0
+        phi = phimin - deltaPhi
+        if phi > +pi:  phi -= 2*pi
+        if phi < -pi:  phi += 2*pi
+        return phi
+
+    def traj_phimax_1(r):
+        deltaPhi = - asin(mPtFactor * (r-rstar) * invPt)
+        #deltaPhi = 0
+        phi = phimax + deltaPhi
+        if phi > +pi:  phi -= 2*pi
+        if phi < -pi:  phi += 2*pi
+        return phi
+
+    def traj_phimax_2(r):
         deltaPhi = - asin(mPtFactor * (r-rstar) * invPt)
         phi = phimax - deltaPhi
         if phi > +pi:  phi -= 2*pi
         if phi < -pi:  phi += 2*pi
         return phi
 
-    def traj_zmin(r):
-        #deltaZ = (1.0 / (mPtFactor * invPt) * asin(mPtFactor * r * invPt)) * cotmin
-        #deltaZ = r * (cotmin + tklayout_z_magic)
+    def traj_zmin_1(r):
         deltaZ = r * (cotmin + max_vz/rstar_z)
-        return -max_vz + deltaZ
+        z = -max_vz + deltaZ
+        return z
 
-    def traj_zmax(r):
-        #deltaZ = (1.0 / (mPtFactor * invPt) * asin(mPtFactor * r * invPt)) * cotmax
-        #deltaZ = r * (cotmax - tklayout_z_magic)
+    def traj_zmin_2(r):
+        deltaZ = r * (cotmin - max_vz/rstar_z)
+        z = +max_vz + deltaZ
+        #z = r * cotmin
+        return z
+
+    def traj_zmax_1(r):
+        deltaZ = r * (cotmax + max_vz/rstar_z)
+        z = -max_vz + deltaZ
+        #z = r * cotmax
+        return z
+
+    def traj_zmax_2(r):
         deltaZ = r * (cotmax - max_vz/rstar_z)
-        return +max_vz + deltaZ
+        z = +max_vz + deltaZ
+        return z
 
-    def traj_rmin(z):
+    def traj_rmin_1(z):
         if cotmax == 0:
             return 0
-        #r = (z - max_vz) / (cotmax - tklayout_z_magic)
+        r = (z + max_vz) / (cotmax + max_vz/rstar_z)
+        #r = z / cotmax
+        return r
+
+    def traj_rmin_2(z):
+        if cotmax == 0:
+            return 0
         r = (z - max_vz) / (cotmax - max_vz/rstar_z)
         return r
 
-    def traj_rmax(z):
+    def traj_rmax_1(z):
         if cotmin == 0:
             return 0
-        #r = (z + max_vz) / (cotmin + tklayout_z_magic)
         r = (z + max_vz) / (cotmin + max_vz/rstar_z)
         return r
 
-    return (traj_phimin, traj_phimax, traj_zmin, traj_zmax, traj_rmin, traj_rmax)
+    def traj_rmax_2(z):
+        if cotmin == 0:
+            return 0
+        r = (z - max_vz) / (cotmin - max_vz/rstar_z)
+        #r = z / cotmin
+        return r
+
+    return (traj_phimin_1, traj_phimin_2, traj_phimax_1, traj_phimax_2,
+        traj_zmin_1, traj_zmin_2, traj_zmax_1, traj_zmax_2,
+        traj_rmin_1, traj_rmin_2, traj_rmax_1, traj_rmax_2)
 
 # Filter the modules based on the trajectories
-def filter_modules(trajs, trajsL, trajsR, moduleIds_set, debug=False):
+def filter_modules(trajs, moduleIds_set, debug=False):
     results = []
 
-    traj_phimin, traj_phimax, traj_zmin, traj_zmax, traj_rmin, traj_rmax = trajs
-    #trajL_phimin, trajL_phimax, trajL_zmin, trajL_zmax, trajL_rmin, trajL_rmax = trajsL
-    #trajR_phimin, trajR_phimax, trajR_zmin, trajR_zmax, trajR_rmin, trajR_rmax = trajsR
+    (traj_phimin_1, traj_phimin_2, traj_phimax_1, traj_phimax_2,
+        traj_zmin_1, traj_zmin_2, traj_zmax_1, traj_zmax_2,
+        traj_rmin_1, traj_rmin_2, traj_rmax_1, traj_rmax_2) = trajs
 
     def is_phi_good(phis, phimin, phimax):
         return any(deltaPhi(phimin, phimin) <= deltaPhi(phi, phimin) <= deltaPhi(phimax, phimin) for phi in phis)
@@ -150,44 +196,59 @@ def filter_modules(trajs, trajsL, trajsR, moduleIds_set, debug=False):
         lay = decodeLayer(moduleId)
         if 5 <= lay <= 10:  # Barrel
             r = average(cyl[0::3])
-            phimin = traj_phimin(r)
-            phimax = traj_phimax(r)
-            #if (deltaPhi(phimin, trajL_phimax(r)) > 0):
-            #    phimin = trajL_phimax(r)
-            #if (deltaPhi(trajR_phimin(r), phimax) > 0):
-            #    phimax = trajR_phimin(r)
-            zmin = traj_zmin(r)
-            zmax = traj_zmax(r)
+            r_phimin_1 = traj_phimin_1(r)
+            r_phimin_2 = traj_phimin_2(r)
+            r_phimax_1 = traj_phimax_1(r)
+            r_phimax_2 = traj_phimax_2(r)
+            r_zmin_1 = traj_zmin_1(r)
+            r_zmin_2 = traj_zmin_2(r)
+            r_zmax_1 = traj_zmax_1(r)
+            r_zmax_2 = traj_zmax_2(r)
 
-            if debug:  print "{0} {1:.4f} {2:.4f} {3:.4f} {4:.4f} {5:.4f}".format(moduleId, r, phimin, phimax, zmin, zmax)
+            if debug:  print "{0} {1:.4f} {2:.4f} {3:.4f} {4:.4f} {5:.4f} {6:.4f} {7:.4f} {8:.4f} {9:.4f}".format(moduleId, r, r_phimin_1, r_phimin_2, r_phimax_1, r_phimax_2, r_zmin_1, r_zmin_2, r_zmax_1, r_zmax_2)
             if debug:  print "{0} {1:.4f} {2:.4f} {3:.4f} {4:.4f} {5:.4f} {6:.4f} {7:.4f} {8:.4f} {9:.4f}".format(moduleId, r, *(cyl[1::3] + cyl[2::3]))
 
-            assert(deltaPhi(phimax, phimin) > 0)
-            assert(zmax - zmin > 0)
+            assert(deltaPhi(r_phimax_1, r_phimin_1) > 0)
+            assert(deltaPhi(r_phimax_2, r_phimin_2) > 0)
+            assert(r_zmax_1 - r_zmin_1 > 0)
+            assert(r_zmax_2 - r_zmin_2 > 0)
 
-            if is_phi_good(cyl[1::3], phimin, phimax) and is_z_good(cyl[2::3], zmin, zmax):
+            if (is_phi_good(cyl[1::3], r_phimin_1, r_phimax_1) or is_phi_good(cyl[1::3], r_phimin_2, r_phimax_2)) and \
+                (is_z_good(cyl[2::3], r_zmin_1, r_zmax_1) or is_z_good(cyl[2::3], r_zmin_2, r_zmax_2)):
                 results.append(moduleId)
 
         elif 11 <= lay <= 15 or 18 <= lay <= 22:  # Endcap
             z = average(cyl[2::3])
             if z > 0:
-                rmin = traj_rmin(z)
-                rmax = traj_rmax(z)
+                z_rmin_1 = traj_rmin_1(z)
+                z_rmin_2 = traj_rmin_2(z)
+                z_rmax_1 = traj_rmax_1(z)
+                z_rmax_2 = traj_rmax_2(z)
             else:
-                rmin = traj_rmax(z)
-                rmax = traj_rmin(z)
+                z_rmin_1 = traj_rmax_1(z)
+                z_rmin_2 = traj_rmax_2(z)
+                z_rmax_1 = traj_rmin_1(z)
+                z_rmax_2 = traj_rmin_2(z)
             r = average(cyl[0::3])
-            phimin = traj_phimin(r)
-            phimax = traj_phimax(r)
+            r_phimin_1 = traj_phimin_1(r)
+            r_phimin_2 = traj_phimin_2(r)
+            r_phimax_1 = traj_phimax_1(r)
+            r_phimax_2 = traj_phimax_2(r)
 
-            if debug:  print "{0} {1:.4f} {2:.4f} {3:.4f} {4:.4f} {5:.4f}".format(moduleId, z, phimin, phimax, rmin, rmax)
+            if debug:  print "{0} {1:.4f} {2:.4f} {3:.4f} {4:.4f} {5:.4f} {6:.4f} {7:.4f} {8:.4f} {9:.4f}".format(moduleId, z, r_phimin_1, r_phimin_2, r_phimax_1, r_phimax_2, z_rmin_1, z_rmin_2, z_rmax_1, z_rmax_2)
             if debug:  print "{0} {1:.4f} {2:.4f} {3:.4f} {4:.4f} {5:.4f} {6:.4f} {7:.4f} {8:.4f} {9:.4f}".format(moduleId, z, *(cyl[1::3] + cyl[0::3]))
 
-            assert(deltaPhi(phimax, phimin) > 0)
-            assert((16 <= tt <= 31) or (rmax - rmin > 0))
+            assert(deltaPhi(r_phimax_1, r_phimin_1) > 0)
+            assert(deltaPhi(r_phimax_2, r_phimin_2) > 0)
+            assert((16 <= tt <= 31) or (z_rmax_1 - z_rmin_1 > 0))
+            assert((16 <= tt <= 31) or (z_rmax_2 - z_rmin_2 > 0))
 
-            if is_phi_good(cyl[1::3], phimin, phimax) and is_z_good(cyl[0::3], rmin, rmax):
+            if (is_phi_good(cyl[1::3], r_phimin_1, r_phimax_1) or is_phi_good(cyl[1::3], r_phimin_2, r_phimax_2)) and \
+                (is_z_good(cyl[0::3], z_rmin_1, z_rmax_1) or is_z_good(cyl[0::3], z_rmin_2, z_rmax_2)):
                 results.append(moduleId)
+
+        else:
+            raise Exception("Unexpected moduleId: %i" % moduleId)
 
     return set(results)
 
@@ -199,11 +260,9 @@ count = 0
 for tt in xrange(48):
     # Get the trajectories
     trajs = get_trajectories(tt)
-    trajsL = get_trajectories((tt/8)*8+((tt-1)%8))
-    trajsR = get_trajectories((tt/8)*8+((tt+1)%8))
 
     # Get the moduleIds
-    tt_moduleIds = filter_modules(trajs, trajsL, trajsR, moduleIds_set)
+    tt_moduleIds = filter_modules(trajs, moduleIds_set)
     count += len(tt_moduleIds)
 
     ieta = tt/8
