@@ -12,7 +12,7 @@ quadsum = lambda x,y: sqrt(x*x + y*y)
 # Globals
 
 # Load trigger tower map
-ttmap = json.load(open("../data/trigger_sector_map.json"), object_pairs_hook=convert_key_to_int)
+ttmap = json.load(open("../data/trigger_sector_map_new.json"), object_pairs_hook=convert_key_to_int)
 
 # Load module vertices
 vertexmap = json.load(open("../data/module_vertices.json"), object_pairs_hook=convert_key_to_int)
@@ -40,6 +40,14 @@ for moduleId, xyz in vertexmap.iteritems():
             x.append(x[0])
             y.append(y[0])
         tpolylines[moduleId] = TPolyLine(len(x), array('d', x), array('d', y))
+
+#count = 0
+#for tt in xrange(48):
+#    tt_moduleIds = ttmap[tt]
+#    count += len(tt_moduleIds)
+#
+#print "Number of unique modules: %i" % len(moduleIds_set)
+#print "Number of modules incl. duplicates: %i" % count
 
 nbinsx, xmin, xmax = 100, -120., 120.
 nbinsy, ymin, ymax = 100, -120., 120.
@@ -92,8 +100,10 @@ def drawer_draw(histos, options, debug=False):
     # Magic numbers translated into rstar
     #rstar = sin(tklayout_phi_magic) / mPtFactor / invPt
     #rstar_z = max_vz/tklayout_z_magic
-    rstar = 63.4
-    rstar_z = max_rho
+    #rstar = 63.4
+    #rstar_z = max_rho
+    rstar = 76.5
+    rstar_z = 53.0
 
     if debug:  print "min_pt={0} max_vz={1} max_rho={2}".format(min_pt, max_vz, max_rho)
     if debug:  print "phimin={0:.4f} phimax={1:.4f} etamin={2:.4f} etamax={3:.4f} cotmin={4:.4f} cotmax={5:.4f}".format(phimin, phimax, etamin, etamax, cotmin, cotmax)
@@ -109,6 +119,7 @@ def drawer_draw(histos, options, debug=False):
 
     def traj_phimin_2(r):
         deltaPhi = - asin(mPtFactor * (r-rstar) * invPt)
+        #deltaPhi = 0
         phi = phimin - deltaPhi
         if phi > +pi:  phi -= 2*pi
         if phi < -pi:  phi += 2*pi
@@ -116,6 +127,7 @@ def drawer_draw(histos, options, debug=False):
 
     def traj_phimax_1(r):
         deltaPhi = - asin(mPtFactor * (r-rstar) * invPt)
+        #deltaPhi = 0
         phi = phimax + deltaPhi
         if phi > +pi:  phi -= 2*pi
         if phi < -pi:  phi += 2*pi
@@ -136,11 +148,13 @@ def drawer_draw(histos, options, debug=False):
     def traj_zmin_2(r):
         deltaZ = r * (cotmin - max_vz/rstar_z)
         z = +max_vz + deltaZ
+        #z = r * cotmin
         return z
 
     def traj_zmax_1(r):
         deltaZ = r * (cotmax + max_vz/rstar_z)
         z = -max_vz + deltaZ
+        #z = r * cotmax
         return z
 
     def traj_zmax_2(r):
@@ -197,7 +211,7 @@ def drawer_draw(histos, options, debug=False):
             #    l.SetLineColor(palette[0])
             #else:
             #    l.SetLineColor(palette[1])
-            l.SetLineColor(palette[5])
+            l.SetLineColor(palette[3])
         else:
             l.SetLineColor(kGray)
 
@@ -277,10 +291,10 @@ def drawer_draw(histos, options, debug=False):
         elif c == 2:
             g.SetLineColor(palette[0])
 
-    style_tgraph(gr_phimin_1, 1)
-    style_tgraph(gr_phimin_2, 2)
-    style_tgraph(gr_phimax_1, 1)
-    style_tgraph(gr_phimax_2, 2)
+    for gr in [gr_phimin_1, gr_phimax_1, gr_zmin_1, gr_zmax_1]:
+        style_tgraph(gr, 1)
+    for gr in [gr_phimin_2, gr_phimax_2, gr_zmin_2, gr_zmax_2]:
+        style_tgraph(gr, 2)
 
     def doit():
         gr_phimin_1.Draw("l")
@@ -290,13 +304,11 @@ def drawer_draw(histos, options, debug=False):
 
     histos["xy1"].c1.cd()
     doit()
+    save(options.outdir, "xy1_tt%i" % options.tt, dot_pdf=False)
+
     histos["xy2"].c1.cd()
     doit()
-
-    style_tgraph(gr_zmin_1, 1)
-    style_tgraph(gr_zmin_2, 2)
-    style_tgraph(gr_zmax_1, 1)
-    style_tgraph(gr_zmax_2, 2)
+    save(options.outdir, "xy2_tt%i" % options.tt, dot_pdf=False)
 
     def doit():
         gr_zmin_1.Draw("l")
@@ -306,6 +318,7 @@ def drawer_draw(histos, options, debug=False):
 
     histos["rz"].c1.cd()
     doit()
+    save(options.outdir, "rz_tt%i" % options.tt, dot_pdf=False)
 
     donotdelete.append(tgraphs)
     return
@@ -339,8 +352,9 @@ if __name__ == '__main__':
     parser.add_argument("--min-pt", type=float, default=2., help="minimum track pT (default: %(default)s)")
     parser.add_argument("--max-vz", type=float, default=7., help="maximum vertex spread (default: %(default)s)")
     parser.add_argument("--max-rho", type=float, default=110., help="maximum tracker radius (default: %(default)s)")
-    parser.add_argument("--tt", type=float, default=27, help="trigger tower (default: %(default)s)")
+    parser.add_argument("--tt", type=int, default=27, help="trigger tower (default: %(default)s)")
     options = parser.parse_args()
 
     # Call the main function
     main(options)
+
