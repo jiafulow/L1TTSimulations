@@ -54,7 +54,7 @@ vertexmap = json.load(open("../data/module_vertices.json"), object_pairs_hook=co
 
 vertexmap_cyl = {}
 moduleIds_set = set()
-min_rho, max_rho = 9999, -9999
+min_rho_1, max_rho_1 = 9999., -9999.
 for moduleId, xyz in vertexmap.iteritems():
     if moduleId < 0:  continue
     moduleIds_set.add(moduleId)
@@ -62,11 +62,11 @@ for moduleId, xyz in vertexmap.iteritems():
     cyl = convert_xyz_to_cyl(xyz)
     vertexmap_cyl[moduleId] = cyl
 
-    if min_rho > average(cyl[0::3]):
-        min_rho = average(cyl[0::3])
-    if max_rho < average(cyl[0::3]):
-        max_rho = average(cyl[0::3])
-#print "min_rho, max_rho = %.4f, %.4f" % (min_rho, max_rho)
+    if min_rho_1 > average(cyl[0::3]):
+        min_rho_1 = average(cyl[0::3])
+    if max_rho_1 < average(cyl[0::3]):
+        max_rho_1 = average(cyl[0::3])
+#print "min_rho_1, max_rho_1 = %.4f, %.4f" % (min_rho_1, max_rho_1)
 
 # Get the trajectories in the physical space of a trigger tower
 def get_trajectories(tt, min_pt=2., max_vz=7., max_rho=110., debug=False):
@@ -86,7 +86,7 @@ def get_trajectories(tt, min_pt=2., max_vz=7., max_rho=110., debug=False):
     #rstar_z = max_vz/tklayout_z_magic
     #rstar = 63.4
     #rstar_z = max_rho
-    rstar = 76.5
+    rstar = 77.15
     rstar_z = 53.0
 
     if debug:  print "min_pt={0} max_vz={1} max_rho={2}".format(min_pt, max_vz, max_rho)
@@ -95,31 +95,29 @@ def get_trajectories(tt, min_pt=2., max_vz=7., max_rho=110., debug=False):
 
     # Define the trajectories
     def traj_phimin_1(r):
-        deltaPhi = - asin(mPtFactor * (r-rstar) * invPt)
-        phi = phimin + deltaPhi
+        dphi = - asin(mPtFactor * (r-rstar) * invPt)
+        phi = phimin + dphi
         if phi > +pi:  phi -= 2*pi
         if phi < -pi:  phi += 2*pi
         return phi
 
     def traj_phimin_2(r):
-        deltaPhi = - asin(mPtFactor * (r-rstar) * invPt)
-        #deltaPhi = 0
-        phi = phimin - deltaPhi
+        dphi = - asin(mPtFactor * (r-rstar) * invPt)
+        phi = phimin - dphi
         if phi > +pi:  phi -= 2*pi
         if phi < -pi:  phi += 2*pi
         return phi
 
     def traj_phimax_1(r):
-        deltaPhi = - asin(mPtFactor * (r-rstar) * invPt)
-        #deltaPhi = 0
-        phi = phimax + deltaPhi
+        dphi = - asin(mPtFactor * (r-rstar) * invPt)
+        phi = phimax + dphi
         if phi > +pi:  phi -= 2*pi
         if phi < -pi:  phi += 2*pi
         return phi
 
     def traj_phimax_2(r):
-        deltaPhi = - asin(mPtFactor * (r-rstar) * invPt)
-        phi = phimax - deltaPhi
+        dphi = - asin(mPtFactor * (r-rstar) * invPt)
+        phi = phimax - dphi
         if phi > +pi:  phi -= 2*pi
         if phi < -pi:  phi += 2*pi
         return phi
@@ -132,13 +130,11 @@ def get_trajectories(tt, min_pt=2., max_vz=7., max_rho=110., debug=False):
     def traj_zmin_2(r):
         deltaZ = r * (cotmin - max_vz/rstar_z)
         z = +max_vz + deltaZ
-        #z = r * cotmin
         return z
 
     def traj_zmax_1(r):
         deltaZ = r * (cotmax + max_vz/rstar_z)
         z = -max_vz + deltaZ
-        #z = r * cotmax
         return z
 
     def traj_zmax_2(r):
@@ -147,29 +143,27 @@ def get_trajectories(tt, min_pt=2., max_vz=7., max_rho=110., debug=False):
         return z
 
     def traj_rmin_1(z):
-        if cotmax == 0:
-            return 0
+        #if cotmax == 0:
+        #    return 0
         r = (z + max_vz) / (cotmax + max_vz/rstar_z)
-        #r = z / cotmax
         return r
 
     def traj_rmin_2(z):
-        if cotmax == 0:
-            return 0
+        #if cotmax == 0:
+        #    return 0
         r = (z - max_vz) / (cotmax - max_vz/rstar_z)
         return r
 
     def traj_rmax_1(z):
-        if cotmin == 0:
-            return 0
+        #if cotmin == 0:
+        #    return 0
         r = (z + max_vz) / (cotmin + max_vz/rstar_z)
         return r
 
     def traj_rmax_2(z):
-        if cotmin == 0:
-            return 0
+        #if cotmin == 0:
+        #    return 0
         r = (z - max_vz) / (cotmin - max_vz/rstar_z)
-        #r = z / cotmin
         return r
 
     return (traj_phimin_1, traj_phimin_2, traj_phimax_1, traj_phimax_2,
@@ -177,7 +171,7 @@ def get_trajectories(tt, min_pt=2., max_vz=7., max_rho=110., debug=False):
         traj_rmin_1, traj_rmin_2, traj_rmax_1, traj_rmax_2)
 
 # Filter the modules based on the trajectories
-def filter_modules(trajs, moduleIds_set, debug=False):
+def filter_modules(tt, trajs, moduleIds_set, debug=False):
     results = []
 
     (traj_phimin_1, traj_phimin_2, traj_phimax_1, traj_phimax_2,
@@ -213,11 +207,29 @@ def filter_modules(trajs, moduleIds_set, debug=False):
             assert(r_zmax_1 - r_zmin_1 > 0)
             assert(r_zmax_2 - r_zmin_2 > 0)
 
-            if (is_phi_good(cyl[1::3], r_phimin_1, r_phimax_1) or is_phi_good(cyl[1::3], r_phimin_2, r_phimax_2)) and \
-                (is_z_good(cyl[2::3], r_zmin_1, r_zmax_1) or is_z_good(cyl[2::3], r_zmin_2, r_zmax_2)):
+            #if (is_phi_good(cyl[1::3], r_phimin_1, r_phimax_1) or is_phi_good(cyl[1::3], r_phimin_2, r_phimax_2)) and \
+            #    (is_z_good(cyl[2::3], r_zmin_1, r_zmax_1) or is_z_good(cyl[2::3], r_zmin_2, r_zmax_2)):
+            #    results.append(moduleId)
+
+            # Decide to use whether 1 or 2
+            if deltaPhi(r_phimax_1, r_phimin_1) >= deltaPhi(r_phimax_2, r_phimin_1):
+                r_phimax = r_phimax_1
+            else:
+                r_phimax = r_phimax_2
+            if deltaPhi(r_phimin_1, r_phimin_1) <= deltaPhi(r_phimin_2, r_phimin_1):
+                r_phimin = r_phimin_1
+            else:
+                r_phimin = r_phimin_2
+            r_zmax = max(r_zmax_1, r_zmax_2)
+            r_zmin = min(r_zmin_1, r_zmin_2)
+
+            if is_phi_good(cyl[1::3], r_phimin, r_phimax) and is_z_good(cyl[2::3], r_zmin, r_zmax):
                 results.append(moduleId)
 
         elif 11 <= lay <= 15 or 18 <= lay <= 22:  # Endcap
+            if 11 <= lay <= 15 and tt <  24:  continue  # ignore opposite endcap
+            if 18 <= lay <= 22 and tt >= 24:  continue  # ignore opposite endcap
+
             z = average(cyl[2::3])
             if z > 0:
                 z_rmin_1 = traj_rmin_1(z)
@@ -240,11 +252,27 @@ def filter_modules(trajs, moduleIds_set, debug=False):
 
             assert(deltaPhi(r_phimax_1, r_phimin_1) > 0)
             assert(deltaPhi(r_phimax_2, r_phimin_2) > 0)
-            assert((16 <= tt <= 31) or (z_rmax_1 - z_rmin_1 > 0))
-            assert((16 <= tt <= 31) or (z_rmax_2 - z_rmin_2 > 0))
+            assert((z_rmax_1 < 0) or (z_rmax_1 - z_rmin_1 > 0))
+            assert((z_rmax_2 < 0) or (z_rmax_2 - z_rmin_2 > 0))
 
-            if (is_phi_good(cyl[1::3], r_phimin_1, r_phimax_1) or is_phi_good(cyl[1::3], r_phimin_2, r_phimax_2)) and \
-                (is_z_good(cyl[0::3], z_rmin_1, z_rmax_1) or is_z_good(cyl[0::3], z_rmin_2, z_rmax_2)):
+            #if (is_phi_good(cyl[1::3], r_phimin_1, r_phimax_1) or is_phi_good(cyl[1::3], r_phimin_2, r_phimax_2)) and \
+            #    (is_z_good(cyl[0::3], z_rmin_1, z_rmax_1) or is_z_good(cyl[0::3], z_rmin_2, z_rmax_2)):
+            #    results.append(moduleId)
+
+            # Decide to use whether 1 or 2
+            if deltaPhi(r_phimax_1, r_phimin_1) >= deltaPhi(r_phimax_2, r_phimin_1):
+                r_phimax = r_phimax_1
+            else:
+                r_phimax = r_phimax_2
+            if deltaPhi(r_phimin_1, r_phimin_1) <= deltaPhi(r_phimin_2, r_phimin_1):
+                r_phimin = r_phimin_1
+            else:
+                r_phimin = r_phimin_2
+            safe_r = lambda r: r if r > 0 else 9999.
+            z_rmax = max(safe_r(z_rmax_1), safe_r(z_rmax_2))
+            z_rmin = min(safe_r(z_rmin_1), safe_r(z_rmin_2))
+
+            if is_phi_good(cyl[1::3], r_phimin, r_phimax) and is_z_good(cyl[0::3], z_rmin, z_rmax):
                 results.append(moduleId)
 
         else:
@@ -262,7 +290,7 @@ for tt in xrange(48):
     trajs = get_trajectories(tt)
 
     # Get the moduleIds
-    tt_moduleIds = filter_modules(trajs, moduleIds_set)
+    tt_moduleIds = filter_modules(tt, trajs, moduleIds_set)
     count += len(tt_moduleIds)
 
     ieta = tt/8
