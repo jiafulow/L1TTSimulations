@@ -102,7 +102,7 @@ def drawer_draw(histos, options, debug=False):
     #rstar_z = max_vz/tklayout_z_magic
     #rstar = 63.4
     #rstar_z = max_rho
-    rstar = 76.5
+    rstar = 77.15
     rstar_z = 53.0
 
     if debug:  print "min_pt={0} max_vz={1} max_rho={2}".format(min_pt, max_vz, max_rho)
@@ -111,31 +111,29 @@ def drawer_draw(histos, options, debug=False):
 
     # __________________________________________________________________________
     def traj_phimin_1(r):
-        deltaPhi = - asin(mPtFactor * (r-rstar) * invPt)
-        phi = phimin + deltaPhi
+        dphi = - asin(mPtFactor * (r-rstar) * invPt)
+        phi = phimin + dphi
         if phi > +pi:  phi -= 2*pi
         if phi < -pi:  phi += 2*pi
         return phi
 
     def traj_phimin_2(r):
-        deltaPhi = - asin(mPtFactor * (r-rstar) * invPt)
-        #deltaPhi = 0
-        phi = phimin - deltaPhi
+        dphi = - asin(mPtFactor * (r-rstar) * invPt)
+        phi = phimin - dphi
         if phi > +pi:  phi -= 2*pi
         if phi < -pi:  phi += 2*pi
         return phi
 
     def traj_phimax_1(r):
-        deltaPhi = - asin(mPtFactor * (r-rstar) * invPt)
-        #deltaPhi = 0
-        phi = phimax + deltaPhi
+        dphi = - asin(mPtFactor * (r-rstar) * invPt)
+        phi = phimax + dphi
         if phi > +pi:  phi -= 2*pi
         if phi < -pi:  phi += 2*pi
         return phi
 
     def traj_phimax_2(r):
-        deltaPhi = - asin(mPtFactor * (r-rstar) * invPt)
-        phi = phimax - deltaPhi
+        dphi = - asin(mPtFactor * (r-rstar) * invPt)
+        phi = phimax - dphi
         if phi > +pi:  phi -= 2*pi
         if phi < -pi:  phi += 2*pi
         return phi
@@ -148,19 +146,41 @@ def drawer_draw(histos, options, debug=False):
     def traj_zmin_2(r):
         deltaZ = r * (cotmin - max_vz/rstar_z)
         z = +max_vz + deltaZ
-        #z = r * cotmin
         return z
 
     def traj_zmax_1(r):
         deltaZ = r * (cotmax + max_vz/rstar_z)
         z = -max_vz + deltaZ
-        #z = r * cotmax
         return z
 
     def traj_zmax_2(r):
         deltaZ = r * (cotmax - max_vz/rstar_z)
         z = +max_vz + deltaZ
         return z
+
+    def traj_rmin_1(z):
+        #if cotmax == 0:
+        #    return 0
+        r = (z + max_vz) / (cotmax + max_vz/rstar_z)
+        return r
+
+    def traj_rmin_2(z):
+        #if cotmax == 0:
+        #    return 0
+        r = (z - max_vz) / (cotmax - max_vz/rstar_z)
+        return r
+
+    def traj_rmax_1(z):
+        #if cotmin == 0:
+        #    return 0
+        r = (z + max_vz) / (cotmin + max_vz/rstar_z)
+        return r
+
+    def traj_rmax_2(z):
+        #if cotmin == 0:
+        #    return 0
+        r = (z - max_vz) / (cotmin - max_vz/rstar_z)
+        return r
 
     # __________________________________________________________________________
     def draw_phi_lines():
@@ -253,7 +273,7 @@ def drawer_draw(histos, options, debug=False):
         n = 100
         xx, yy = [], []
         for i in xrange(n):
-            r = (rmax - rmin) / float(n) * (i+0.5)
+            r = rmin + (rmax - rmin) / float(n) * (i+0.5)
             phi = traj(r)
             xx.append(r * cos(phi))
             yy.append(r * sin(phi))
@@ -264,8 +284,19 @@ def drawer_draw(histos, options, debug=False):
         n = 100
         rr, zz = [], []
         for i in xrange(n):
-            r = (rmax - rmin) / float(n) * (i+0.5)
+            r = rmin + (rmax - rmin) / float(n) * (i+0.5)
             z = traj(r)
+            rr.append(r)
+            zz.append(z)
+        gr = TGraph(n, array('d', zz), array('d', rr))
+        return gr
+
+    def make_rz_graph_using_z(traj):
+        n = 100
+        rr, zz = [], []
+        for i in xrange(n):
+            z = zmin + (zmax - zmin) / float(n) * (i+0.5)
+            r = traj(z)
             rr.append(r)
             zz.append(z)
         gr = TGraph(n, array('d', zz), array('d', rr))
@@ -281,6 +312,10 @@ def drawer_draw(histos, options, debug=False):
     gr_zmin_2 = make_rz_graph(traj_zmin_2)
     gr_zmax_1 = make_rz_graph(traj_zmax_1)
     gr_zmax_2 = make_rz_graph(traj_zmax_2)
+    #gr_zmin_1 = make_rz_graph_using_z(traj_rmin_1)
+    #gr_zmin_2 = make_rz_graph_using_z(traj_rmin_2)
+    #gr_zmax_1 = make_rz_graph_using_z(traj_rmax_1)
+    #gr_zmax_2 = make_rz_graph_using_z(traj_rmax_2)
     tgraphs += [gr_zmin_1, gr_zmin_2, gr_zmax_1, gr_zmax_2]
 
     def style_tgraph(g, c):
@@ -296,28 +331,19 @@ def drawer_draw(histos, options, debug=False):
     for gr in [gr_phimin_2, gr_phimax_2, gr_zmin_2, gr_zmax_2]:
         style_tgraph(gr, 2)
 
-    def doit():
-        gr_phimin_1.Draw("l")
-        gr_phimin_2.Draw("l")
-        gr_phimax_1.Draw("l")
-        gr_phimax_2.Draw("l")
-
     histos["xy1"].c1.cd()
-    doit()
+    for gr in [gr_phimin_1, gr_phimin_2, gr_phimax_1, gr_phimax_2]:
+        gr.Draw("l")
     save(options.outdir, "xy1_tt%i" % options.tt, dot_pdf=False)
 
     histos["xy2"].c1.cd()
-    doit()
+    for gr in [gr_phimin_1, gr_phimin_2, gr_phimax_1, gr_phimax_2]:
+        gr.Draw("l")
     save(options.outdir, "xy2_tt%i" % options.tt, dot_pdf=False)
 
-    def doit():
-        gr_zmin_1.Draw("l")
-        gr_zmin_2.Draw("l")
-        gr_zmax_1.Draw("l")
-        gr_zmax_2.Draw("l")
-
     histos["rz"].c1.cd()
-    doit()
+    for gr in [gr_zmin_1, gr_zmin_2, gr_zmax_1, gr_zmax_2]:
+        gr.Draw("l")
     save(options.outdir, "rz_tt%i" % options.tt, dot_pdf=False)
 
     donotdelete.append(tgraphs)
