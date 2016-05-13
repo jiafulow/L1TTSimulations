@@ -14,7 +14,7 @@
 //#include "Geometry/CommonTopologies/interface/PixelTopology.h"
 #include "DataFormats/SiPixelDetId/interface/StackedTrackerDetId.h"
 
-#include "L1TTSimulations/GeometryTools/interface/ModuleIdFunctor.h"
+#include "L1TTSimulations/TrackerTools/interface/ModuleIdFunctor.h"
 
 #include <iostream>
 #include <iomanip>

@@ -1,7 +1,7 @@
 import FWCore.ParameterSet.Config as cms
 import os
 
-process = cms.Process("Geometry")
+process = cms.Process("Tracker")
 
 process.load('Configuration.Geometry.GeometryExtended2023TTIReco_cff')
 process.load('Configuration.Geometry.GeometryExtended2023TTI_cff')

@@ -1,11 +1,11 @@
 <export>
 </export>
 
-<library file="*.cc" name="L1TTSimulationsGeometryTools_tests">
+<library file="*.cc" name="L1TTSimulationsTrackerTools_tests">
   <use name="Geometry/TrackerGeometryBuilder"/>
   <use name="Geometry/Records"/>
   <use name="MagneticField/Records"/>
   <use name="MagneticField/Engine"/>
-  <use name="L1TTSimulations/GeometryTools"/>
+  <use name="L1TTSimulations/TrackerTools"/>
   <flags EDM_PLUGIN="1"/>
 </library>

@@ -1,5 +1,5 @@
-#ifndef GeometryTools_ModuleIdFunctor_h_
-#define GeometryTools_ModuleIdFunctor_h_
+#ifndef TrackerTools_ModuleIdFunctor_h_
+#define TrackerTools_ModuleIdFunctor_h_
 
 #include "DataFormats/DetId/interface/DetId.h"
 #include "DataFormats/SiPixelDetId/interface/PixelSubdetector.h"

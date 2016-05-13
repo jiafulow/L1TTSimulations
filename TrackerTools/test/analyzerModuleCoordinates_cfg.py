@@ -1,7 +1,7 @@
 import FWCore.ParameterSet.Config as cms
 import os
 
-process = cms.Process("Geometry")
+process = cms.Process("Tracker")
 
 process.load('Configuration.Geometry.GeometryExtended2023TTIReco_cff')
 process.load('Configuration.Geometry.GeometryExtended2023TTI_cff')
@@ -17,8 +17,8 @@ process.maxEvents = cms.untracked.PSet(
     input = cms.untracked.int32(1)
 )
 
-process.a1 = cms.EDAnalyzer("AnalyzerStackedTracker",
-    csv = cms.string('stacked_tracker.csv'),
+process.a1 = cms.EDAnalyzer("AnalyzerModuleCoordinates",
+    csv = cms.string('module_coordinates.csv'),
     verbosity = cms.int32(0),
 )
 
