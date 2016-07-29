@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
-from ROOT import TFile, TTree, TH1F, gROOT, gStyle, gPad
-from math import sqrt, pi, sinh, atan2
+from ROOT import TFile, TTree, TH1F, TH2F, TProfile, gROOT, gStyle, gPad
+from math import sqrt, pi, sinh, atan2, tan, exp, log
 from itertools import izip, count
 import numpy as np
 from numpy import linalg as LA
@@ -14,8 +14,7 @@ from incrementalstats import *
 """
 # TODO
 1. Derive pre-estimate
-2. Plot err as a function of parameters
-3. Allow missing layers
+2. Allow missing layers
 """
 
 
@@ -23,7 +22,7 @@ from incrementalstats import *
 # Configurations
 fname = "/cms/data/store/user/jiafulow/L1TrackTrigger/6_2_0_SLHC25p3/Demo_Emulator/stubs_tt27_300M_emu.root"
 #fname = "root://cmsxrootd-site.fnal.gov//store/user/l1upgrades/SLHC/GEN/Demo_Emulator/stubs_tt27_300M_emu.root"
-nentries = 100000
+nentries = 400000
 #nentries = 10000000
 verbose = 1
 make_plots = 1
@@ -130,6 +129,14 @@ def process_step1():
         variables1 -= simC * variables3
         variables2 -= simT * variables3
 
+        # Apply R^3 correction
+        r_over_two_rho_term = np.power(np.array(evt.TTStubs_r) * simC,3)
+        r_over_two_rho_term *= 1.0/6.0
+        r_over_two_rho_term_z = np.copy(r_over_two_rho_term)
+        r_over_two_rho_term_z *= 1.0/simC
+        variables1 -= r_over_two_rho_term
+        variables2 -= r_over_two_rho_term_z
+
         stat_var1.add(variables1)
         stat_var2.add(variables2)
         continue
@@ -210,6 +217,14 @@ def process_step1():
         simT = simCotTheta
         variables1 -= simC * variables3
         variables2 -= simT * variables3
+
+        # Apply R^3 correction
+        r_over_two_rho_term = np.power(np.array(evt.TTStubs_r) * simC,3)
+        r_over_two_rho_term *= 1.0/6.0
+        r_over_two_rho_term_z = np.copy(r_over_two_rho_term)
+        r_over_two_rho_term_z *= 1.0/simC
+        variables1 -= r_over_two_rho_term
+        variables2 -= r_over_two_rho_term_z
 
         # Must satisfy variable ranges
         if not np.all([np.less_equal(min_var1, variables1), np.less(variables1, max_var1), np.less_equal(min_var2, variables2), np.less(variables2, max_var2)]):
@@ -361,6 +376,8 @@ def process_step3():
     data_err1 = []
     data_err2 = []
 
+    data_errPt = []
+
     for ievt, variables1, variables2, parameters1, parameters2 in izip(count(), data_var1, data_var2, data_par1, data_par2):
         # Principal components
         principals1 = np.dot(V_var1, variables1 - stat_var1.mean())
@@ -383,6 +400,9 @@ def process_step3():
         stat_err2.add(parameters_err2)
         data_err1.append(parameters_err1)
         data_err2.append(parameters_err2)
+
+        parameters_errPt = (abs(1.0/parameters_fit1[0]) - abs(1.0/parameters1[0])) * parameters1[0]
+        data_errPt.append(parameters_errPt)
         continue
 
     if verbose > 0:
@@ -424,62 +444,148 @@ def process_step3():
     if make_plots:
         histos = {}
 
+        myptbins = [0.0, 0.5, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 8.0, 10.0, 12.0, 15.0, 20.0, 25.0, 30.0, 35.0, 40.0, 45.0, 50.0, 55.0, 60.0, 70.0, 80.0, 100.0, 125.0, 150.0, 200.0, 250.0, 300.0, 350.0, 400.0, 450.0, 500.0, 550.0, 600.0, 650.0, 700.0, 800.0, 1000.0, 2000.0, 7000.0]
+
         # Book histograms
         for i in xrange(nvariables*2):
             hname = "npc%i" % (i)
+            htitle = "principal component %i" % (i)
             nbinsx, xmin, xmax = 1000, -7., 7.
-            histos[hname] = TH1F(hname, ";"+hname, nbinsx, xmin, xmax)
+            histos[hname] = TH1F(hname, ";"+htitle, nbinsx, xmin, xmax)
 
-        for i in xrange(nparameters*2):
+            htitle2, nbinsy, ymin, ymax = htitle, nbinsx, xmin, xmax
+            for j in xrange(nparameters*2):
+                hname = "npc%i_vs_par%i" % (i,j)
+                if j == 0:
+                    htitle = "q/p_{T} [1/GeV]"
+                    nbinsx, xmin, xmax = 20, -0.5, 0.5
+                elif j == 1:
+                    htitle = "#phi [rad]"
+                    nbinsx, xmin, xmax = 20, pi/4, pi/2
+                elif j == 2:
+                    htitle = "cot #theta"
+                    nbinsx, xmin, xmax = 20, 0., 0.8
+                elif j == 3:
+                    htitle = "z_{0} [cm]"
+                    nbinsx, xmin, xmax = 20, -15., 15.
+                else:
+                    htitle = ""
+                    nbinsx, xmin, xmax = 20, -1., 1.
+                histos[hname] = TH2F(hname, ";"+htitle+";"+htitle2, nbinsx, xmin, xmax, nbinsy, ymin, ymax)
+
+        for i in xrange(nparameters*2 + 1):
             hname = "err%i" % (i)
             if i == 0:
-                nbinsx, xmin, xmax = 1000, -0.02, 0.02
+                htitle = "#Delta q/p_{T} [1/GeV]"
+                nbinsx, xmin, xmax = 1000, -0.015, 0.015
             elif i == 1:
-                nbinsx, xmin, xmax = 1000, -0.005, 0.005
+                htitle = "#Delta #phi [rad]"
+                nbinsx, xmin, xmax = 1000, -0.004, 0.004
             elif i == 2:
-                nbinsx, xmin, xmax = 1000, -0.02, 0.02
+                htitle = "#Delta cot #theta"
+                nbinsx, xmin, xmax = 1000, -0.03, 0.03
             elif i == 3:
-                nbinsx, xmin, xmax = 1000, -0.5, 0.5
+                htitle = "#Delta z_{0} [cm]"
+                nbinsx, xmin, xmax = 1000, -1.2, 1.2
+            elif i == 4:
+                htitle = "#Delta (p_{T})/p_{T}"
+                nbinsx, xmin, xmax = 1000, -0.2, 0.2
             else:
-                nbinsx, xmin, xmax = 1000, -2., 2.
-            histos[hname] = TH1F(hname, ";"+hname, nbinsx, xmin, xmax)
+                htitle = ""
+                nbinsx, xmin, xmax = 1000, -1., 1.
+            histos[hname] = TH1F(hname, ";"+htitle, nbinsx, xmin, xmax)
+
+            htitle2, nbinsy, ymin, ymax = htitle, nbinsx, xmin, xmax
+            for j in xrange(nparameters*2):
+                hname = "err%i_vs_par%i" % (i,j)
+                if j == 0:
+                    htitle = "q/p_{T} [1/GeV]"
+                    nbinsx, xmin, xmax = 20, -0.5, 0.5
+                elif j == 1:
+                    htitle = "#phi [rad]"
+                    nbinsx, xmin, xmax = 20, pi/4, pi/2
+                elif j == 2:
+                    htitle = "cot #theta"
+                    nbinsx, xmin, xmax = 20, 0, 0.8
+                elif j == 3:
+                    htitle = "z_{0} [cm]"
+                    nbinsx, xmin, xmax = 20, -15, 15
+                else:
+                    htitle = ""
+                    nbinsx, xmin, xmax = 20, -1, 1
+                histos[hname] = TH2F(hname, ";"+htitle+";"+htitle2, nbinsx, xmin, xmax, nbinsy, ymin, ymax)
+
+            hname = "err%i_vs_pt" % (i)
+            htitle = "p_{T} [GeV]"
+            nbinsx, xmin, xmax = 20, 0, 200
+            #histos[hname] = TH2F(hname, ";"+htitle+";"+htitle2, nbinsx, xmin, xmax, nbinsy, ymin, ymax)
+            histos[hname] = TH2F(hname, ";"+htitle+";"+htitle2, len(myptbins)-1, np.array(myptbins), nbinsy, ymin, ymax)
+            hname = "err%i_vs_eta" % (i)
+            htitle = "|#eta|"
+            nbinsx, xmin, xmax = 25, 0, 2.5
+            histos[hname] = TH2F(hname, ";"+htitle+";"+htitle2, nbinsx, xmin, xmax, nbinsy, ymin, ymax)
+
 
         # Fill histograms
-        for x in data_pc1:
-            for i in xrange(nvariables):
-                xx = x[i]/sqrt(w_var1[i]) if abs(w_var1[i]) > 1e-14 else 0.
+        assert(len(data_par2) == len(data_par1))
+        assert(len(data_pc1) == len(data_par1))
+        assert(len(data_err1) == len(data_par1))
+
+        for x1, x2, p1, p2 in izip(data_pc1, data_pc2, data_par1, data_par2):
+            x1 = [x1[i]/sqrt(w_var1[i]) if abs(w_var1[i]) > 1e-14 else 0. for i in xrange(len(x1))]
+            x2 = [x2[i]/sqrt(w_var2[i]) if abs(w_var2[i]) > 1e-14 else 0. for i in xrange(len(x2))]
+            x = np.concatenate((x1,x2))
+            p = np.concatenate((p1,p2))
+
+            for i in xrange(nvariables*2):
                 hname = "npc%i" % (i)
-                histos[hname].Fill(xx)
+                histos[hname].Fill(x[i])
 
-        for x in data_pc2:
-            for i in xrange(nvariables):
-                xx = x[i]/sqrt(w_var2[i]) if abs(w_var2[i]) > 1e-14 else 0.
-                hname = "npc%i" % (nvariables+i)
-                histos[hname].Fill(xx)
+                for j in xrange(nparameters*2):
+                    hname = "npc%i_vs_par%i" % (i,j)
+                    histos[hname].Fill(p[j], x[i])
 
-        for x in data_err1:
-            for i in xrange(nparameters):
-                xx = x[i]
+        for x1, x2, xPt, p1, p2 in izip(data_err1, data_err2, data_errPt, data_par1, data_par2):
+            x = np.concatenate((x1,x2))
+            p = np.concatenate((p1,p2))
+
+            x = np.concatenate((x, [xPt]))
+
+            for i in xrange(nparameters*2 + 1):
                 hname = "err%i" % (i)
-                histos[hname].Fill(xx)
+                histos[hname].Fill(x[i])
 
-        for x in data_err2:
-            for i in xrange(nparameters):
-                xx = x[i]
-                hname = "err%i" % (nparameters+i)
-                histos[hname].Fill(xx)
+                for j in xrange(nparameters*2):
+                    hname = "err%i_vs_par%i" % (i,j)
+                    histos[hname].Fill(p[j], x[i])
+
+                pt = abs(1.0/p1[0])
+                theta = atan2(1.0, p2[0])
+                eta = -log(tan(theta/2.0))
+                eta = abs(eta)
+                hname = "err%i_vs_pt" % (i)
+                histos[hname].Fill(pt, x[i])
+                hname = "err%i_vs_eta" % (i)
+                histos[hname].Fill(eta, x[i])
 
         # Write histograms
+        outfile = TFile.Open("histos.root", "RECREATE")
+        for hname, h in sorted(histos.iteritems()):
+            h.Write()
+        outfile.Close()
+
+        # Print statistics
         printme = []
         for hname, h in sorted(histos.iteritems()):
-            h.Draw("hist")
-            h.Fit("gaus","q")
-            h.fit = h.GetFunction("gaus")
-            imgname = "%s.png" % hname
-            gPad.Print(imgname)
+            if h.ClassName() == "TH1F":
+                h.Draw("hist")
+                h.Fit("gaus","q")
+                h.fit = h.GetFunction("gaus")
+                #imgname = "%s.png" % hname
+                #gPad.Print(imgname)
 
-            s = "%s, %f, %f, %f, %f" % (hname, h.GetMean(), h.GetRMS(), h.fit.GetParameter(1), h.fit.GetParameter(2))
-            printme.append(s)
+                s = "%s, %f, %f, %f, %f" % (hname, h.GetMean(), h.GetRMS(), h.fit.GetParameter(1), h.fit.GetParameter(2))
+                printme.append(s)
         print '\n'.join(printme)
 
     return
