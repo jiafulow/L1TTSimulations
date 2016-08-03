@@ -21,6 +21,10 @@ class IncrementalStats:
         self.cache = []
         self.cnt = 0
 
+        # Sums
+        self.sumw = 0.0
+        self.sumw2 = 0.0
+
         # Parametric
         self.v_mean = np.zeros(d)
         self.v_variance = np.zeros(d)
@@ -31,7 +35,7 @@ class IncrementalStats:
         self.v_minimum = np.ones(d) * float('inf')
         self.v_maximum = np.ones(d) * float('-inf')
 
-    def add(self, variables, covariables=None):
+    def add(self, variables, covariables=None, weight=None):
         assert(variables.shape == (self.d,))
         if covariables is None:
             covariables = variables
@@ -39,19 +43,35 @@ class IncrementalStats:
 
         self.cnt += 1
 
-        # Parametric
-        v_delta = (variables - self.v_mean)
-        #self.v_mean = (self.v_mean * (self.cnt-1) + variables) / float(self.cnt)
-        self.v_mean += v_delta / float(self.cnt)
-        #if self.cnt > 1:
-            #v_delta = (variables - self.v_mean)
-            #self.v_variance += (v_delta * v_delta) / float(self.cnt-1) - self.v_variance / float(self.cnt)
-            #self.m_covariance += np.outer(v_delta, v_delta) / float(self.cnt-1) - self.m_covariance / float(self.cnt)
-        self.v_variance += v_delta * (variables - self.v_mean)
+        # Sums
+        if weight is None:
+            w = 1.0
+        else:
+            w = weight
+        self.sumw += w
+        self.sumw2 += w
 
-        v_delta2 = (covariables - self.v_mean2)
-        self.v_mean2 += v_delta2 / float(self.cnt)
-        self.m_covariance += np.outer(v_delta, v_delta2) * (self.cnt-1) / float(self.cnt)
+        # Parametric
+        if weight is None:
+            v_delta = (variables - self.v_mean)
+            #self.v_mean = (self.v_mean * (self.cnt-1) + variables) / float(self.cnt)
+            self.v_mean += v_delta / float(self.cnt)
+            #if self.cnt > 1:
+                #v_delta = (variables - self.v_mean)
+                #self.v_variance += (v_delta * v_delta) / float(self.cnt-1) - self.v_variance / float(self.cnt)
+                #self.m_covariance += np.outer(v_delta, v_delta) / float(self.cnt-1) - self.m_covariance / float(self.cnt)
+            self.v_variance += v_delta * (variables - self.v_mean)
+
+            v_delta2 = (covariables - self.v_mean2)
+            self.v_mean2 += v_delta2 / float(self.cnt)
+            self.m_covariance += np.outer(v_delta, v_delta2) * (self.cnt-1) / float(self.cnt)
+        else:
+            v_delta = (variables - self.v_mean)
+            self.v_mean += v_delta * (w/self.sumw)
+            self.v_variance += v_delta * (variables - self.v_mean) * w
+            v_delta2 = (covariables - self.v_mean2)
+            self.v_mean2 += v_delta2 * (w/self.sumw)
+            self.m_covariance += np.outer(v_delta, v_delta2) * (w * (self.sumw-w) / self.sumw)
 
         # Non-parametric
         self.v_minimum = np.minimum(self.v_minimum, variables)
@@ -76,7 +96,7 @@ class IncrementalStats:
             return float('NaN')
         else:
             #return self.v_variance
-            return self.v_variance / float(self.cnt - ddof)
+            return self.v_variance / float(self.sumw - ddof)
 
     def stdev(self, ddof=0):
         if self.cnt < 2:
@@ -89,7 +109,7 @@ class IncrementalStats:
             return float('NaN')
         else:
             #return self.m_covariance
-            return self.m_covariance / float(self.cnt - ddof)
+            return self.m_covariance / float(self.sumw - ddof)
 
     def minimum(self):
         return self.v_minimum
@@ -106,11 +126,10 @@ class IncrementalStats:
 # ______________________________________________________________________________
 if __name__ == '__main__':
 
-    import random
-
     d = 6
     nevents = 10000
     myarray = []
+    myarray_w = []
 
     stat = IncrementalStats(d=6, p=0.5, cache_size=nevents/10)
 
@@ -118,13 +137,16 @@ if __name__ == '__main__':
     for i in xrange(nevents):
         mu, sigma = 0., 1.
         variables = np.random.normal(mu, sigma, d)
-        stat.add(variables)
+        weights = np.random.uniform(0.5, 2.0, 1)
+        stat.add(variables, weight=weights[0])
 
         # Cross check
         #print i, variables
         myarray.append(variables)
+        myarray_w.append(weights[0])
 
     myarray = np.array(myarray)
+    myarray_w = np.array(myarray_w)
 
     print stat.count()
     print stat.mean()
@@ -139,3 +161,5 @@ if __name__ == '__main__':
     print len(myarray)
     print np.mean(myarray, axis=0)
     print np.var(myarray, axis=0)
+    print np.average(myarray, axis=0, weights=myarray_w)
+    print np.average(np.square(myarray-np.average(myarray, axis=0, weights=myarray_w)), axis=0, weights=myarray_w)

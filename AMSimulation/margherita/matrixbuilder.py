@@ -34,7 +34,7 @@ cache_size = 10000
 minInvPt = -1.0/3
 maxInvPt = +1.0/3
 
-r_center = np.array([22.5913, 35.4772, 50.5402, 68.3101, 88.5002, 107.71])
+r_center = np.asarray([22.5913, 35.4772, 50.5402, 68.3101, 88.5002, 107.71])
 phi_center = pi*3/8
 eta_center = 2.2/6
 cot_center = sinh(eta_center)
@@ -68,6 +68,8 @@ def process_step1():
     global data_var2
     global data_par1
     global data_par2
+
+    random.seed(2016)
 
     if verbose > 0:
         print "# Step 1"
@@ -230,6 +232,7 @@ def process_step1():
         if not np.all([np.less_equal(min_var1, variables1), np.less(variables1, max_var1), np.less_equal(min_var2, variables2), np.less(variables2, max_var2)]):
             continue
 
+        # Get statistics of variables and parameters
         stat_var1.add(variables1)
         stat_var2.add(variables2)
         stat_par1.add(parameters1)
@@ -240,6 +243,12 @@ def process_step1():
         data_par1.append(parameters1)
         data_par2.append(parameters2)
         continue
+
+    # Convert to numpy arrays
+    #data_var1 = np.asarray(data_var1)
+    #data_var2 = np.asarray(data_var2)
+    #data_par1 = np.asarray(data_par1)
+    #data_par2 = np.asarray(data_par2)
 
     if verbose > 0:
         print "count: ", stat_var1.count()
@@ -318,10 +327,12 @@ def process_step2():
         stat_D2.add(principals2, covariables=parameters2)
         continue
 
+    # Solve for least squares D1 & D2
     #q_pc1, r_pc1 = LA.qr(stat_pc1.covariance())
     #d_pc1 = np.dot(LA.inv(r_pc1), np.dot(q_pc1.transpose(), stat_pc1.covariance()))
-    d_pc1 = LA.solve(stat_pc1.covariance(), stat_D1.covariance())
-    d_pc2 = LA.solve(stat_pc2.covariance(), stat_D2.covariance())
+    #d_pc1 = LA.solve(stat_pc1.covariance(), stat_D1.covariance())
+    d_pc1 = LA.lstsq(stat_pc1.covariance(), stat_D1.covariance())[0]
+    d_pc2 = LA.lstsq(stat_pc2.covariance(), stat_D2.covariance())[0]
     D_pc1 = d_pc1.transpose()
     D_pc2 = d_pc2.transpose()
     D_var1 = np.dot(D_pc1, V_var1)
@@ -356,6 +367,154 @@ def process_step2():
         #print "verify: ", np.dot(stat_pc1.covariance(), soln_D1)
         #print "verify: ", np.dot(stat_pc2.covariance(), soln_D2)
         #print
+    return
+
+# ______________________________________________________________________________
+def process_step2a(ntrials=3, do_trim=True):
+    # Implement Robust Least Squares
+    #   http://www.mathworks.com/help/curvefit/least-squares-fitting.html#bq_5kr9-4
+    #   https://en.wikipedia.org/wiki/Iteratively_reweighted_least_squares
+
+    global stat_var1
+    global stat_var2
+    global stat_par1
+    global stat_par2
+
+    global w_var1
+    global w_var2
+    global V_var1
+    global V_var2
+    global D_var1
+    global D_var2
+
+    def weight_func(u):
+        w = (1. - u*u) * (1. - u*u) if abs(u) < 1 else 0  # bisquare weight
+        return w
+    #weight_func = np.vectorize(weight_func)
+
+    for itrial in xrange(ntrials):
+        if verbose > 0:
+            print "# Step 2a"
+            print "itrial: %i" % itrial
+
+        stat_err1 = IncrementalStats(d=nparameters, cache_size=cache_size)
+        stat_err2 = IncrementalStats(d=nparameters, cache_size=cache_size)
+
+        for ievt, variables1, variables2, parameters1, parameters2 in izip(count(), data_var1, data_var2, data_par1, data_par2):
+            if ievt == min(cache_size, nentries):
+                break
+
+            # Fit parameters
+            parameters_fit1 = np.dot(D_var1, variables1)
+            parameters_fit2 = np.dot(D_var2, variables2)
+            parameters_err1 = parameters_fit1 - parameters1
+            parameters_err2 = parameters_fit2 - parameters2
+
+            stat_err1.add(np.fabs(parameters_err1))  # l1-norm
+            stat_err2.add(np.fabs(parameters_err2))  # l1-norm
+            continue
+
+        # scale = (Median absolute deviation/0.6745) * tuning * sqrt(1-h)
+        # but ignoring sqrt(1-h) for now
+        scales_resid1 = stat_err1.quantile(p=0.5)/0.6745 * 4.685
+        scales_resid2 = stat_err2.quantile(p=0.5)/0.6745 * 4.685
+        cuts_resid1 = stat_err1.quantile(p=0.90)
+        cuts_resid2 = stat_err2.quantile(p=0.90)
+
+        if verbose > 0:
+            print "scales_resid1: ", scales_resid1
+            print "scales_resid2: ", scales_resid2
+            print "cuts_resid1  : ", cuts_resid1
+            print "cuts_resid2  : ", cuts_resid2
+
+
+        stat_var1 = IncrementalStats(d=nvariables)
+        stat_var2 = IncrementalStats(d=nvariables)
+        stat_par1 = IncrementalStats(d=nparameters)
+        stat_par2 = IncrementalStats(d=nparameters)
+        stat_pc1 = IncrementalStats(d=nvariables)
+        stat_pc2 = IncrementalStats(d=nvariables)
+        stat_D1 = IncrementalStats(d=nvariables, cov_d=nparameters)
+        stat_D2 = IncrementalStats(d=nvariables, cov_d=nparameters)
+
+        for ievt, variables1, variables2, parameters1, parameters2 in izip(count(), data_var1, data_var2, data_par1, data_par2):
+
+            # Fit parameters
+            parameters_fit1 = np.dot(D_var1, variables1)
+            parameters_fit2 = np.dot(D_var2, variables2)
+            parameters_err1 = parameters_fit1 - parameters1
+            parameters_err2 = parameters_fit2 - parameters2
+
+            if do_trim:
+                # Simple trimming
+                if not np.all([np.less(np.fabs(parameters_err1), cuts_resid1), np.less(np.fabs(parameters_err2), cuts_resid2)]):
+                    continue
+                w_resid1 = None
+                w_resid2 = None
+            else:
+                # Reweighting
+                weights_resid1 = np.fabs(parameters_err1) / scales_resid1
+                weights_resid2 = np.fabs(parameters_err2) / scales_resid2
+                w_resid1 = weight_func(weights_resid1[0])  # use only residual in q/pT
+                w_resid2 = weight_func(weights_resid2[0])  # use only residual in cotTheta
+
+            # Get statistics of variables and parameters
+            stat_var1.add(variables1, weight=w_resid1)
+            stat_var2.add(variables2, weight=w_resid2)
+            stat_par1.add(parameters1, weight=w_resid1)
+            stat_par2.add(parameters2, weight=w_resid2)
+
+            # Principal components
+            principals1 = np.dot(V_var1, variables1 - stat_var1.mean())
+            principals2 = np.dot(V_var2, variables2 - stat_var2.mean())
+            stat_pc1.add(principals1, weight=w_resid1)
+            stat_pc2.add(principals2, weight=w_resid2)
+
+            # For D1 & D2
+            stat_D1.add(principals1, covariables=parameters1, weight=w_resid1)
+            stat_D2.add(principals2, covariables=parameters2, weight=w_resid2)
+            continue
+
+        # Find eigenvectors
+        w_var1, v_var1 = LA.eigh(stat_var1.covariance())
+        w_var2, v_var2 = LA.eigh(stat_var2.covariance())
+        V_var1 = v_var1.transpose()
+        V_var2 = v_var2.transpose()
+
+        # Solve for least squares D1 & D2
+        d_pc1 = LA.lstsq(stat_pc1.covariance(), stat_D1.covariance())[0]
+        d_pc2 = LA.lstsq(stat_pc2.covariance(), stat_D2.covariance())[0]
+        D_pc1 = d_pc1.transpose()
+        D_pc2 = d_pc2.transpose()
+        D_var1 = np.dot(D_pc1, V_var1)
+        D_var2 = np.dot(D_pc2, V_var2)
+
+        if verbose > 0:
+            print "count: ", stat_pc1.count()
+            print "mean : ", stat_pc1.mean()
+            print "var  : ", stat_pc1.variance()
+            print "cov  : ", stat_pc1.covariance()
+            print
+            print "count: ", stat_pc2.count()
+            print "mean : ", stat_pc2.mean()
+            print "var  : ", stat_pc2.variance()
+            print "cov  : ", stat_pc2.covariance()
+            print
+            print "count: ", stat_D1.count()
+            print "mean : ", stat_D1.mean()
+            print "var  : ", stat_D1.variance()
+            print "cov  : ", stat_D1.covariance()
+            print "D    : ", D_pc1
+            print "DV   : ", D_var1
+            print
+            print "count: ", stat_D2.count()
+            print "mean : ", stat_D2.mean()
+            print "var  : ", stat_D2.variance()
+            print "cov  : ", stat_D2.covariance()
+            print "D    : ", D_pc2
+            print "DV   : ", D_var2
+            print
+        continue
     return
 
 # ______________________________________________________________________________
@@ -444,7 +603,7 @@ def process_step3():
     if make_plots:
         histos = {}
 
-        myptbins = [0.0, 0.5, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 8.0, 10.0, 12.0, 15.0, 20.0, 25.0, 30.0, 35.0, 40.0, 45.0, 50.0, 55.0, 60.0, 70.0, 80.0, 100.0, 125.0, 150.0, 200.0, 250.0, 300.0, 350.0, 400.0, 450.0, 500.0, 550.0, 600.0, 650.0, 700.0, 800.0, 1000.0, 2000.0, 7000.0]
+        myptbins = [0.0, 0.5, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 8.0, 10.0, 12.0, 15.0, 20.0, 25.0, 30.0, 35.0, 40.0, 45.0, 50.0, 55.0, 60.0, 70.0, 80.0, 100.0, 125.0, 150.0, 200.0, 250.0, 300.0, 350.0, 400.0, 500.0, 600.0, 800.0, 1000.0, 2000.0, 7000.0]
 
         # Book histograms
         for i in xrange(nvariables*2):
@@ -598,6 +757,7 @@ def main():
 
     # 2nd step: compute the coefficients
     process_step2()
+    process_step2a()
 
     # 3rd step: evaluate with the coefficients
     process_step3()
