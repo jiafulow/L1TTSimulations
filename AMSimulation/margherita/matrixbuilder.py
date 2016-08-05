@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from ROOT import TFile, TTree, TH1F, TH2F, TProfile, gROOT, gStyle, gPad
+from ROOT import TFile, TTree, TH1F, TH2F, TProfile, TF1, gROOT, gStyle, gPad
 from math import sqrt, pi, sinh, atan2, tan, exp, log
 from itertools import izip, count
 import numpy as np
@@ -8,6 +8,7 @@ from numpy import linalg as LA
 from scipy import optimize
 #import matplotlib.pyplot as plt
 import random
+random.seed(2016)
 
 from incrementalstats import *
 
@@ -24,11 +25,14 @@ fname = "/cms/data/store/user/jiafulow/L1TrackTrigger/6_2_0_SLHC25p3/Demo_Emulat
 #fname = "root://cmsxrootd-site.fnal.gov//store/user/l1upgrades/SLHC/GEN/Demo_Emulator/stubs_tt27_300M_emu.root"
 nentries = 400000
 #nentries = 10000000
+use_3D = 0
 verbose = 1
 make_plots = 1
 
-nparameters = 2  # 2D view
-nvariables = 6   # 2D view
+nparameters2D = 2  # 2D view
+nvariables2D = 6   # 2D view
+nparameters3D = nparameters2D*2
+nvariables3D = nvariables2D*2
 cache_size = 10000
 
 minInvPt = -1.0/3
@@ -69,10 +73,18 @@ def process_step1():
     global data_par1
     global data_par2
 
-    random.seed(2016)
+    if use_3D:
+        nvariables = nvariables3D
+        nparameters = nparameters3D
+    else:
+        nvariables = nvariables2D
+        nparameters = nparameters2D
 
     if verbose > 0:
         print "# Step 1"
+        print "fname     : ", fname
+        print "nentries  : ", nentries
+        print "use_3D    : ", use_3D
         print "r_center  : ", r_center
         print "phi_center: ", phi_center
         print "eta_center: ", eta_center
@@ -81,8 +93,8 @@ def process_step1():
     # __________________________________________________________________________
     # Cache 10000 events
 
-    stat_var1 = IncrementalStats(d=nvariables, cache_size=cache_size)
-    stat_var2 = IncrementalStats(d=nvariables, cache_size=cache_size)
+    stat_var1 = IncrementalStats(d=nvariables2D, cache_size=cache_size)
+    stat_var2 = IncrementalStats(d=nvariables2D, cache_size=cache_size)
 
     for ievt, evt in enumerate(ttree):
         if ievt == min(cache_size, nentries):
@@ -93,20 +105,29 @@ def process_step1():
             continue
 
         # Must have 6 stubs
-        if len(evt.TTStubs_phi) != nvariables:
+        if len(evt.TTStubs_phi) != 6:
             continue
 
         # Sanity checks
         assert(len(evt.genParts_charge) == 1)
         assert(len(evt.genParts_pt) == 1)
         assert(len(evt.genParts_eta) == 1)
-        assert(len(evt.TTStubs_phi) == nvariables)
-        assert(len(evt.TTStubs_r) == nvariables)
-        assert(len(evt.TTStubs_z) == nvariables)
+        assert(len(evt.TTStubs_phi) == 6)
+        assert(len(evt.TTStubs_r) == 6)
+        assert(len(evt.TTStubs_z) == 6)
 
         # Get track variables
         simInvPt = float(evt.genParts_charge[0])/evt.genParts_pt[0]
+        simPhi = evt.genParts_phi[0]
         simCotTheta = sinh(evt.genParts_eta[0])
+        simVz = evt.genParts_vz[0]
+
+        try:
+            theta = atan2(1.0, simCotTheta)
+            eta = -log(tan(theta/2.0))
+        except:
+            print "Unexpected math error:", evt.genParts_eta[0], simCotTheta, simTanTheta, theta
+            raise
 
         # Must satisfy invPt range
         if not (minInvPt <= simInvPt < maxInvPt):
@@ -186,7 +207,7 @@ def process_step1():
             continue
 
         # Must have 6 stubs
-        if len(evt.TTStubs_phi) != nvariables:
+        if len(evt.TTStubs_phi) != 6:
             continue
 
         # Get track variables
@@ -232,16 +253,28 @@ def process_step1():
         if not np.all([np.less_equal(min_var1, variables1), np.less(variables1, max_var1), np.less_equal(min_var2, variables2), np.less(variables2, max_var2)]):
             continue
 
-        # Get statistics of variables and parameters
+        # Concatenate
+        if use_3D:
+            variables1 = np.concatenate((variables1, variables2))
+            variables2 = variables1
+            parameters1 = np.concatenate((parameters1, parameters2))
+            parameters2 = parameters1
+
         stat_var1.add(variables1)
         stat_var2.add(variables2)
         stat_par1.add(parameters1)
         stat_par2.add(parameters2)
 
-        data_var1.append(variables1)
-        data_var2.append(variables2)
-        data_par1.append(parameters1)
-        data_par2.append(parameters2)
+        if use_3D:
+            data_var1.append(variables1)
+            data_var2 = data_var1
+            data_par1.append(parameters1)
+            data_par2 = data_par1
+        else:
+            data_var1.append(variables1)
+            data_var2.append(variables2)
+            data_par1.append(parameters1)
+            data_par2.append(parameters2)
         continue
 
     # Convert to numpy arrays
@@ -281,6 +314,13 @@ def process_step2():
     global V_var2
     global D_var1
     global D_var2
+
+    if use_3D:
+        nvariables = nvariables3D
+        nparameters = nparameters3D
+    else:
+        nvariables = nvariables2D
+        nparameters = nparameters2D
 
     # Find eigenvectors
     w_var1, v_var1 = LA.eigh(stat_var1.covariance())
@@ -331,8 +371,10 @@ def process_step2():
     #q_pc1, r_pc1 = LA.qr(stat_pc1.covariance())
     #d_pc1 = np.dot(LA.inv(r_pc1), np.dot(q_pc1.transpose(), stat_pc1.covariance()))
     #d_pc1 = LA.solve(stat_pc1.covariance(), stat_D1.covariance())
-    d_pc1 = LA.lstsq(stat_pc1.covariance(), stat_D1.covariance())[0]
-    d_pc2 = LA.lstsq(stat_pc2.covariance(), stat_D2.covariance())[0]
+    soln_pc1 = LA.lstsq(stat_pc1.covariance(), stat_D1.covariance())
+    soln_pc2 = LA.lstsq(stat_pc2.covariance(), stat_D2.covariance())
+    d_pc1 = soln_pc1[0]
+    d_pc2 = soln_pc2[0]
     D_pc1 = d_pc1.transpose()
     D_pc2 = d_pc2.transpose()
     D_var1 = np.dot(D_pc1, V_var1)
@@ -353,6 +395,7 @@ def process_step2():
         print "mean : ", stat_D1.mean()
         print "var  : ", stat_D1.variance()
         print "cov  : ", stat_D1.covariance()
+        print "resid: ", soln_pc1[1]
         print "D    : ", D_pc1
         print "DV   : ", D_var1
         print
@@ -360,6 +403,7 @@ def process_step2():
         print "mean : ", stat_D2.mean()
         print "var  : ", stat_D2.variance()
         print "cov  : ", stat_D2.covariance()
+        print "resid: ", soln_pc2[1]
         print "D    : ", D_pc2
         print "DV   : ", D_var2
         print
@@ -386,6 +430,13 @@ def process_step2a(ntrials=3, do_trim=True):
     global V_var2
     global D_var1
     global D_var2
+
+    if use_3D:
+        nvariables = nvariables3D
+        nparameters = nparameters3D
+    else:
+        nvariables = nvariables2D
+        nparameters = nparameters2D
 
     def weight_func(u):
         w = (1. - u*u) * (1. - u*u) if abs(u) < 1 else 0  # bisquare weight
@@ -458,7 +509,6 @@ def process_step2a(ntrials=3, do_trim=True):
                 w_resid1 = weight_func(weights_resid1[0])  # use only residual in q/pT
                 w_resid2 = weight_func(weights_resid2[0])  # use only residual in cotTheta
 
-            # Get statistics of variables and parameters
             stat_var1.add(variables1, weight=w_resid1)
             stat_var2.add(variables2, weight=w_resid2)
             stat_par1.add(parameters1, weight=w_resid1)
@@ -482,8 +532,10 @@ def process_step2a(ntrials=3, do_trim=True):
         V_var2 = v_var2.transpose()
 
         # Solve for least squares D1 & D2
-        d_pc1 = LA.lstsq(stat_pc1.covariance(), stat_D1.covariance())[0]
-        d_pc2 = LA.lstsq(stat_pc2.covariance(), stat_D2.covariance())[0]
+        soln_pc1 = LA.lstsq(stat_pc1.covariance(), stat_D1.covariance())
+        soln_pc2 = LA.lstsq(stat_pc2.covariance(), stat_D2.covariance())
+        d_pc1 = soln_pc1[0]
+        d_pc2 = soln_pc2[0]
         D_pc1 = d_pc1.transpose()
         D_pc2 = d_pc2.transpose()
         D_var1 = np.dot(D_pc1, V_var1)
@@ -504,6 +556,7 @@ def process_step2a(ntrials=3, do_trim=True):
             print "mean : ", stat_D1.mean()
             print "var  : ", stat_D1.variance()
             print "cov  : ", stat_D1.covariance()
+            print "resid: ", soln_pc1[1]
             print "D    : ", D_pc1
             print "DV   : ", D_var1
             print
@@ -511,6 +564,7 @@ def process_step2a(ntrials=3, do_trim=True):
             print "mean : ", stat_D2.mean()
             print "var  : ", stat_D2.variance()
             print "cov  : ", stat_D2.covariance()
+            print "resid: ", soln_pc2[1]
             print "D    : ", D_pc2
             print "DV   : ", D_var2
             print
@@ -519,6 +573,13 @@ def process_step2a(ntrials=3, do_trim=True):
 
 # ______________________________________________________________________________
 def process_step3():
+    if use_3D:
+        nvariables = nvariables3D
+        nparameters = nparameters3D
+    else:
+        nvariables = nvariables2D
+        nparameters = nparameters2D
+
     if verbose > 0:
         print "# Step 3"
 
@@ -606,14 +667,14 @@ def process_step3():
         myptbins = [0.0, 0.5, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 8.0, 10.0, 12.0, 15.0, 20.0, 25.0, 30.0, 35.0, 40.0, 45.0, 50.0, 55.0, 60.0, 70.0, 80.0, 100.0, 125.0, 150.0, 200.0, 250.0, 300.0, 350.0, 400.0, 500.0, 600.0, 800.0, 1000.0, 2000.0, 7000.0]
 
         # Book histograms
-        for i in xrange(nvariables*2):
+        for i in xrange(nvariables3D):
             hname = "npc%i" % (i)
             htitle = "principal component %i" % (i)
             nbinsx, xmin, xmax = 1000, -7., 7.
             histos[hname] = TH1F(hname, ";"+htitle, nbinsx, xmin, xmax)
 
             htitle2, nbinsy, ymin, ymax = htitle, nbinsx, xmin, xmax
-            for j in xrange(nparameters*2):
+            for j in xrange(nparameters3D):
                 hname = "npc%i_vs_par%i" % (i,j)
                 if j == 0:
                     htitle = "q/p_{T} [1/GeV]"
@@ -632,14 +693,14 @@ def process_step3():
                     nbinsx, xmin, xmax = 20, -1., 1.
                 histos[hname] = TH2F(hname, ";"+htitle+";"+htitle2, nbinsx, xmin, xmax, nbinsy, ymin, ymax)
 
-        for i in xrange(nparameters*2 + 1):
+        for i in xrange(nparameters3D + 1):
             hname = "err%i" % (i)
             if i == 0:
                 htitle = "#Delta q/p_{T} [1/GeV]"
                 nbinsx, xmin, xmax = 1000, -0.015, 0.015
             elif i == 1:
                 htitle = "#Delta #phi [rad]"
-                nbinsx, xmin, xmax = 1000, -0.004, 0.004
+                nbinsx, xmin, xmax = 1000, -0.005, 0.005
             elif i == 2:
                 htitle = "#Delta cot #theta"
                 nbinsx, xmin, xmax = 1000, -0.03, 0.03
@@ -655,7 +716,7 @@ def process_step3():
             histos[hname] = TH1F(hname, ";"+htitle, nbinsx, xmin, xmax)
 
             htitle2, nbinsy, ymin, ymax = htitle, nbinsx, xmin, xmax
-            for j in xrange(nparameters*2):
+            for j in xrange(nparameters3D):
                 hname = "err%i_vs_par%i" % (i,j)
                 if j == 0:
                     htitle = "q/p_{T} [1/GeV]"
@@ -691,35 +752,44 @@ def process_step3():
         assert(len(data_err1) == len(data_par1))
 
         for x1, x2, p1, p2 in izip(data_pc1, data_pc2, data_par1, data_par2):
-            x1 = [x1[i]/sqrt(w_var1[i]) if abs(w_var1[i]) > 1e-14 else 0. for i in xrange(len(x1))]
-            x2 = [x2[i]/sqrt(w_var2[i]) if abs(w_var2[i]) > 1e-14 else 0. for i in xrange(len(x2))]
-            x = np.concatenate((x1,x2))
-            p = np.concatenate((p1,p2))
+            # Concatenate
+            if not use_3D:
+                x1 = [x1[i]/sqrt(w_var1[i]) if abs(w_var1[i]) > 1e-14 else 0. for i in xrange(len(x1))]
+                x2 = [x2[i]/sqrt(w_var2[i]) if abs(w_var2[i]) > 1e-14 else 0. for i in xrange(len(x2))]
+                x = np.concatenate((x1,x2))
+                p = np.concatenate((p1,p2))
+            else:
+                x1 = [x1[i]/sqrt(w_var1[i]) if abs(w_var1[i]) > 1e-14 else 0. for i in xrange(len(x1))]
+                x = np.concatenate((x1,))
+                p = np.concatenate((p1,))
 
-            for i in xrange(nvariables*2):
+            for i in xrange(nvariables3D):
                 hname = "npc%i" % (i)
                 histos[hname].Fill(x[i])
 
-                for j in xrange(nparameters*2):
+                for j in xrange(nparameters3D):
                     hname = "npc%i_vs_par%i" % (i,j)
                     histos[hname].Fill(p[j], x[i])
 
         for x1, x2, xPt, p1, p2 in izip(data_err1, data_err2, data_errPt, data_par1, data_par2):
-            x = np.concatenate((x1,x2))
-            p = np.concatenate((p1,p2))
+            # Concatenate
+            if not use_3D:
+                x = np.concatenate((x1,x2,[xPt]))
+                p = np.concatenate((p1,p2))
+            else:
+                x = np.concatenate((x1,[xPt]))
+                p = np.concatenate((p1,))
 
-            x = np.concatenate((x, [xPt]))
-
-            for i in xrange(nparameters*2 + 1):
+            for i in xrange(nparameters3D + 1):
                 hname = "err%i" % (i)
                 histos[hname].Fill(x[i])
 
-                for j in xrange(nparameters*2):
+                for j in xrange(nparameters3D):
                     hname = "err%i_vs_par%i" % (i,j)
                     histos[hname].Fill(p[j], x[i])
 
-                pt = abs(1.0/p1[0])
-                theta = atan2(1.0, p2[0])
+                pt = abs(1.0/p[0])
+                theta = atan2(1.0, p[2])
                 eta = -log(tan(theta/2.0))
                 eta = abs(eta)
                 hname = "err%i_vs_pt" % (i)
@@ -738,11 +808,11 @@ def process_step3():
         for hname, h in sorted(histos.iteritems()):
             if h.ClassName() == "TH1F":
                 h.Draw("hist")
-                h.Fit("gaus","q")
-                h.fit = h.GetFunction("gaus")
-                #imgname = "%s.png" % hname
-                #gPad.Print(imgname)
-
+                if h.Integral() > 0:
+                    h.Fit("gaus","q")
+                    h.fit = h.GetFunction("gaus")
+                else:
+                    h.fit = TF1("fa1", "gaus(0)")
                 s = "%s, %f, %f, %f, %f" % (hname, h.GetMean(), h.GetRMS(), h.fit.GetParameter(1), h.fit.GetParameter(2))
                 printme.append(s)
         print '\n'.join(printme)
