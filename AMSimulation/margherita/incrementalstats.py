@@ -120,7 +120,7 @@ class IncrementalStats:
     def quantile(self, p=None):
         if not p:
             p = self.p
-        return np.percentile(self.cache, int(p*100), axis=0)
+        return np.percentile(self.cache, p*100, axis=0)
 
 
 # ______________________________________________________________________________
