@@ -21,11 +21,11 @@ from incrementalstats import *
 
 # ______________________________________________________________________________
 # Configurations
-fname = "/cms/data/store/user/jiafulow/L1TrackTrigger/6_2_0_SLHC25p3/Demo_Emulator/stubs_tt27_300M_emu.root"
+fname = "/cms/data/store/user/jiafulow/L1TrackTrigger/6_2_0_SLHC25p3_ntuple/stubs_tt43_50M/stubs_tt43_50M.0.root"
 #fname = "root://cmsxrootd-site.fnal.gov//store/user/l1upgrades/SLHC/GEN/Demo_Emulator/stubs_tt27_300M_emu.root"
-nentries = 100000
+nentries = 100000*8
 #nentries = 10000000
-use_3D = 0
+use_3D = 1
 verbose = 1
 make_plots = 1
 
@@ -35,14 +35,16 @@ nparameters3D = nparameters2D*2
 nvariables3D = nvariables2D*2
 cache_size = 10000
 
-minInvPt = -1.0/3
-maxInvPt = +1.0/3
-minEta = 0.0
-maxEta = 2.2/3
+minInvPt = -1.0/10.
+maxInvPt = +1.0/10.
+#minEta = 1.6
+#maxEta = 2.4
+minEta = 2.05
+maxEta = 2.15
 
-r_center = np.asarray([22.5913, 35.4772, 50.5402, 68.3101, 88.5002, 107.71])
+z_center = np.asarray([82.385, 131.344, 156.145, 185.504, 220.258, 261.400])
 phi_center = pi*3/8
-eta_center = 2.2/6
+eta_center = (1.6+2.4)/2
 
 # Data
 stat_var1 = None
@@ -86,7 +88,7 @@ def process_step1():
         print "fname     : ", fname
         print "nentries  : ", nentries
         print "use_3D    : ", use_3D
-        print "r_center  : ", r_center
+        print "z_center  : ", z_center
         print "phi_center: ", phi_center
         print "eta_center: ", eta_center
         print
@@ -107,17 +109,26 @@ def process_step1():
         if len(evt.genParts_pt) != 1:
             continue
 
+        # Collect the desired TTStubs
+        TTStubs_modId, TTStubs_phi, TTStubs_r, TTStubs_z = [], [], [], []
+        for modId, phi, r ,z in izip(evt.TTStubs_modId, evt.TTStubs_phi, evt.TTStubs_r, evt.TTStubs_z):
+            if int(modId/10000) in [5,11,12,13,14,15]:
+                TTStubs_modId.append(modId)
+                TTStubs_phi.append(phi)
+                TTStubs_r.append(r)
+                TTStubs_z.append(z)
+
         # Must have 6 stubs
-        if len(evt.TTStubs_phi) != 6:
+        if len(TTStubs_phi) != 6:
             continue
 
         # Sanity checks
         assert(len(evt.genParts_charge) == 1)
         assert(len(evt.genParts_pt) == 1)
         assert(len(evt.genParts_eta) == 1)
-        assert(len(evt.TTStubs_phi) == 6)
-        assert(len(evt.TTStubs_r) == 6)
-        assert(len(evt.TTStubs_z) == 6)
+        assert(len(TTStubs_phi) == 6)
+        assert(len(TTStubs_r) == 6)
+        assert(len(TTStubs_z) == 6)
 
         # Get track variables
         simInvPt = float(evt.genParts_charge[0])/evt.genParts_pt[0]
@@ -128,7 +139,7 @@ def process_step1():
         simVz = evt.genParts_vz[0]
 
         try:
-            theta = atan2(1.0, simCotTheta)
+            theta = atan2(simTanTheta, 1.0)
             eta = -log(tan(theta/2.0))
         except:
             print "Unexpected math error:", simEta, simCotTheta, simTanTheta, theta
@@ -138,32 +149,30 @@ def process_step1():
         if not ((minInvPt <= simInvPt < maxInvPt) and (minEta <= simEta < maxEta)):
             continue
 
+        # Exchange barrel z measurement for r, and r constant for z
+        for lay in [0,]:
+            TTStubs_r[lay], TTStubs_z[lay] = TTStubs_z[lay] * simTanTheta, TTStubs_r[lay] * simCotTheta
+
         # Get stub variables
-        variables1 = np.array(evt.TTStubs_phi)
-        variables2 = np.array(evt.TTStubs_z)
-        variables3 = np.array(evt.TTStubs_r) - r_center  # deltaR
+        variables1 = np.array(TTStubs_phi)
+        variables2 = np.array(TTStubs_r)
+        variables3 = np.array(TTStubs_z) - z_center  # deltaZ
 
-        # Apply z smearing
-        variables2[0] += 0.5*random.uniform(-0.15, 0.15)
-        variables2[1] += 0.5*random.uniform(-0.15, 0.15)
-        variables2[2] += 0.5*random.uniform(-0.15, 0.15)
-        variables2[3] += 0.5*random.uniform(-5, 5)
-        variables2[4] += 0.5*random.uniform(-5, 5)
-        variables2[5] += 0.5*random.uniform(-5, 5)
-
-        # Apply deltaR correction
+        # Apply deltaZ correction
         simC = -0.5 * (0.003 * 3.811 * simInvPt)  # 1/(2 x radius of curvature)
-        simT = simCotTheta
+        simT = 1.0
+        simC *= simTanTheta
+        simT *= simTanTheta
         variables1 -= simC * variables3
         variables2 -= simT * variables3
 
         # Apply R^3 correction
-        r_over_two_rho_term = np.power(np.array(evt.TTStubs_r) * simC,3)
-        r_over_two_rho_term *= 1.0/6.0
-        r_over_two_rho_term_z = np.copy(r_over_two_rho_term)
-        r_over_two_rho_term_z *= 1.0/simC
-        variables1 -= r_over_two_rho_term
-        variables2 -= r_over_two_rho_term_z
+        #r_over_two_rho_term = np.power(np.array(TTStubs_r) * simC,3)
+        #r_over_two_rho_term *= 1.0/6.0
+        #r_over_two_rho_term_z = np.copy(r_over_two_rho_term)
+        #r_over_two_rho_term_z *= 1.0/simC
+        #variables1 -= r_over_two_rho_term
+        #variables2 -= r_over_two_rho_term_z
 
         stat_var1.add(variables1)
         stat_var2.add(variables2)
@@ -217,8 +226,17 @@ def process_step1():
         if len(evt.genParts_pt) != 1:
             continue
 
+        # Collect the desired TTStubs
+        TTStubs_modId, TTStubs_phi, TTStubs_r, TTStubs_z = [], [], [], []
+        for modId, phi, r ,z in izip(evt.TTStubs_modId, evt.TTStubs_phi, evt.TTStubs_r, evt.TTStubs_z):
+            if int(modId/10000) in [5,11,12,13,14,15]:
+                TTStubs_modId.append(modId)
+                TTStubs_phi.append(phi)
+                TTStubs_r.append(r)
+                TTStubs_z.append(z)
+
         # Must have 6 stubs
-        if len(evt.TTStubs_phi) != 6:
+        if len(TTStubs_phi) != 6:
             continue
 
         # Get track variables
@@ -230,40 +248,41 @@ def process_step1():
         simVz = evt.genParts_vz[0]
         parameters1 = np.array([simInvPt, simPhi])
         parameters2 = np.array([simCotTheta, simVz])
+        #parameters2 = np.array([simTanTheta, simInvPt*simTanTheta])
 
         # Must satisfy invPt and eta ranges
         if not ((minInvPt <= simInvPt < maxInvPt) and (minEta <= simEta < maxEta)):
             continue
 
+        # Exchange barrel z measurement for r, and r constant for z
+        for lay in [0,]:
+            TTStubs_r[lay], TTStubs_z[lay] = TTStubs_z[lay] * simTanTheta, TTStubs_r[lay] * simCotTheta
+
         # Get stub variables
-        variables1 = np.array(evt.TTStubs_phi)
-        variables2 = np.array(evt.TTStubs_z)
-        variables3 = np.array(evt.TTStubs_r) - r_center  # deltaR
+        variables1 = np.array(TTStubs_phi)
+        variables2 = np.array(TTStubs_r)
+        variables3 = np.array(TTStubs_z) - z_center  # deltaZ
 
-        # Apply z smearing
-        variables2[0] += 0.5*random.uniform(-0.15, 0.15)
-        variables2[1] += 0.5*random.uniform(-0.15, 0.15)
-        variables2[2] += 0.5*random.uniform(-0.15, 0.15)
-        variables2[3] += 0.5*random.uniform(-5, 5)
-        variables2[4] += 0.5*random.uniform(-5, 5)
-        variables2[5] += 0.5*random.uniform(-5, 5)
-
-        # Apply deltaR correction
+        # Apply deltaZ correction
         simC = -0.5 * (0.003 * 3.811 * simInvPt)  # 1/(2 x radius of curvature)
-        simT = simCotTheta
+        simT = 1.0
+        simC *= simTanTheta
+        simT *= simTanTheta
         variables1 -= simC * variables3
         variables2 -= simT * variables3
 
         # Apply R^3 correction
-        r_over_two_rho_term = np.power(np.array(evt.TTStubs_r) * simC,3)
-        r_over_two_rho_term *= 1.0/6.0
-        r_over_two_rho_term_z = np.copy(r_over_two_rho_term)
-        r_over_two_rho_term_z *= 1.0/simC
-        variables1 -= r_over_two_rho_term
-        variables2 -= r_over_two_rho_term_z
+        #r_over_two_rho_term = np.power(np.array(TTStubs_r) * simC,3)
+        #r_over_two_rho_term *= 1.0/6.0
+        #r_over_two_rho_term_z = np.copy(r_over_two_rho_term)
+        #r_over_two_rho_term_z *= 1.0/simC
+        #variables1 -= r_over_two_rho_term
+        #variables2 -= r_over_two_rho_term_z
 
         # Must satisfy variable ranges
-        if not np.all([np.less_equal(left_cuts_var1, variables1), np.less(variables1, right_cuts_var1), np.less_equal(left_cuts_var2, variables2), np.less(variables2, right_cuts_var2)]):
+        #if not np.all([np.less_equal(left_cuts_var1, variables1), np.less(variables1, right_cuts_var1), np.less_equal(left_cuts_var2, variables2), np.less(variables2, right_cuts_var2)]):
+        #    continue
+        if not np.all([np.less_equal(left_cuts_var1, variables1), np.less(variables1, right_cuts_var1)]):
             continue
 
         # Concatenate
@@ -701,16 +720,20 @@ def process_step3():
                 hname = "npc%i_vs_par%i" % (i,j)
                 if j == 0:
                     htitle = "q/p_{T} [1/GeV]"
-                    nbinsx, xmin, xmax = 20, -0.5, 0.5
+                    nbinsx, xmin, xmax = 20, -0.1, 0.1
                 elif j == 1:
                     htitle = "#phi [rad]"
                     nbinsx, xmin, xmax = 20, pi/4, pi/2
                 elif j == 2:
                     htitle = "cot #theta"
-                    nbinsx, xmin, xmax = 20, 0., 0.8
+                    nbinsx, xmin, xmax = 20, 2., 5.
+                    #htitle = "tan #theta"
+                    #nbinsx, xmin, xmax = 20, 0.1, 0.5
                 elif j == 3:
                     htitle = "z_{0} [cm]"
-                    nbinsx, xmin, xmax = 20, -15., 15.
+                    nbinsx, xmin, xmax = 20, -15, 15
+                    #htitle = "q/p_{z} [1/GeV]"
+                    #nbinsx, xmin, xmax = 20, -0.1, 0.1
                 else:
                     htitle = ""
                     nbinsx, xmin, xmax = 20, -1., 1.
@@ -720,22 +743,26 @@ def process_step3():
             hname = "err%i" % (i)
             if i == 0:
                 htitle = "#Delta q/p_{T} [1/GeV]"
-                nbinsx, xmin, xmax = 1000, -0.015, 0.015
+                nbinsx, xmin, xmax = 1000, -0.05, 0.05
             elif i == 1:
                 htitle = "#Delta #phi [rad]"
                 nbinsx, xmin, xmax = 1000, -0.005, 0.005
             elif i == 2:
                 htitle = "#Delta cot #theta"
-                nbinsx, xmin, xmax = 1000, -0.03, 0.03
+                nbinsx, xmin, xmax = 1000, -8-0.3, -8+0.3
+                #htitle = "#Delta tan #theta"
+                #nbinsx, xmin, xmax = 1000, -0.001, 0.001
             elif i == 3:
                 htitle = "#Delta z_{0} [cm]"
                 nbinsx, xmin, xmax = 1000, -1.2, 1.2
+                #htitle = "#Delta q/p_{z} [1/GeV]"
+                #nbinsx, xmin, xmax = 1000, -0.05, 0.05
             elif i == 4:
                 htitle = "#Delta (p_{T})/p_{T}"
-                nbinsx, xmin, xmax = 1000, -0.2, 0.2
+                nbinsx, xmin, xmax = 1000, -2., 2.
             elif i == 5:
                 htitle = "#Delta (q/p_{T})*p_{T}"
-                nbinsx, xmin, xmax = 1000, -0.2, 0.2
+                nbinsx, xmin, xmax = 1000, -2., 2.
             else:
                 htitle = ""
                 nbinsx, xmin, xmax = 1000, -1., 1.
@@ -746,16 +773,20 @@ def process_step3():
                 hname = "err%i_vs_par%i" % (i,j)
                 if j == 0:
                     htitle = "q/p_{T} [1/GeV]"
-                    nbinsx, xmin, xmax = 20, -0.5, 0.5
+                    nbinsx, xmin, xmax = 20, -0.1, 0.1
                 elif j == 1:
                     htitle = "#phi [rad]"
                     nbinsx, xmin, xmax = 20, pi/4, pi/2
                 elif j == 2:
                     htitle = "cot #theta"
-                    nbinsx, xmin, xmax = 20, 0, 0.8
+                    nbinsx, xmin, xmax = 20, 2., 5.
+                    #htitle = "tan #theta"
+                    #nbinsx, xmin, xmax = 20, 0.1, 0.5
                 elif j == 3:
                     htitle = "z_{0} [cm]"
                     nbinsx, xmin, xmax = 20, -15, 15
+                    #htitle = "q/p_{z} [1/GeV]"
+                    #nbinsx, xmin, xmax = 20, -0.1, 0.1
                 else:
                     htitle = ""
                     nbinsx, xmin, xmax = 20, -1, 1
@@ -816,6 +847,7 @@ def process_step3():
 
                 pt = 1.0/abs(p[0])
                 theta = atan2(1.0, p[2])
+                #theta = atan2(p[2], 1.0)
                 eta = -log(tan(theta/2.0))
                 eta = abs(eta)
                 hname = "err%i_vs_pt" % (i)
@@ -853,7 +885,7 @@ def main():
 
     # 2nd step: compute the coefficients
     process_step2()
-    process_step2a()
+    #process_step2a()
 
     # 3rd step: evaluate with the coefficients
     process_step3()
