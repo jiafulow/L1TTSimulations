@@ -1,0 +1,16 @@
+<use name="FWCore/Framework"/>
+<use name="FWCore/PluginManager"/>
+<use name="FWCore/ParameterSet"/>
+<use name="CommonTools/UtilAlgos"/>
+
+<use name="DataFormats/L1TrackTrigger"/>
+<use name="Geometry/Records"/>
+<use name="Geometry/TrackerGeometryBuilder"/>
+<use name="MagneticField/Engine"/>
+<use name="MagneticField/Records"/>
+
+<use name="L1TTSimulations/TrackerTools"/>
+
+<export>
+  <lib name="1"/>
+</export>
