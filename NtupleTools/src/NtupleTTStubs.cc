@@ -7,16 +7,19 @@
 
 #include "L1TTSimulations/TrackerTools/interface/ModuleIdHelper.h"
 
+using Phase2TrackerGeomDetUnit = PixelGeomDetUnit;
+using Phase2TrackerTopology    = PixelTopology;
+
 
 namespace {
 
 /// findHitGlobalPosition(), findHitGlobalPosition(), findGlobalPosition(), findGlobalDirection() are
 /// copied from deprecated Geometry/TrackerGeometryBuilder/interface/StackedTrackerGeometry.h
 template< typename T >
-GlobalPoint findHitGlobalPosition( const TrackerGeometry * theGeometry, const TTCluster< T > *cluster, unsigned int hitIdx ) {
+GlobalPoint findHitGlobalPosition( const Phase2TrackerGeomDetUnit * geomDetUnit, const TTCluster< T > *cluster, unsigned int hitIdx ) {
   /// Add 0.5 to get the center of the pixel
   //const GeomDetUnit* geomDetUnit = idToDetUnit( cluster->getDetId(), cluster->getStackMember() );
-  const GeomDetUnit* geomDetUnit = theGeometry->idToDetUnit(cluster->getDetId());
+  assert(geomDetUnit);
   int row = 0;
   int col = 0;
 
@@ -36,7 +39,7 @@ GlobalPoint findHitGlobalPosition( const TrackerGeometry * theGeometry, const TT
 }
 
 template<typename T>
-GlobalPoint findAverageGlobalPosition( const TrackerGeometry * theGeometry, const TTCluster< T > *cluster ) {
+GlobalPoint findAverageGlobalPosition( const Phase2TrackerGeomDetUnit * geomDetUnit, const TTCluster< T > *cluster ) {
   double averageX = 0.0;
   double averageY = 0.0;
   double averageZ = 0.0;
@@ -48,7 +51,7 @@ GlobalPoint findAverageGlobalPosition( const TrackerGeometry * theGeometry, cons
   {
     for ( unsigned int i = 0; i < hits.size(); i++ )
     {
-      GlobalPoint thisHitPosition = findHitGlobalPosition( theGeometry, cluster, i );
+      GlobalPoint thisHitPosition = findHitGlobalPosition( geomDetUnit, cluster, i );
       averageX += thisHitPosition.x();
       averageY += thisHitPosition.y();
       averageZ += thisHitPosition.z();
@@ -61,16 +64,16 @@ GlobalPoint findAverageGlobalPosition( const TrackerGeometry * theGeometry, cons
 }
 
 template<typename T>
-GlobalPoint findGlobalPosition(const TrackerGeometry * theGeometry, const TTStub<T> *stub) {
+GlobalPoint findGlobalPosition(const Phase2TrackerGeomDetUnit * geomDetUnit, const TTStub<T> *stub) {
   /// Fast version: only inner cluster matters
-  return findAverageGlobalPosition( theGeometry, stub->getClusterRef(0).get() );
+  return findAverageGlobalPosition( geomDetUnit, stub->getClusterRef(0).get() );
 }
 
 template<typename T>
-GlobalVector findGlobalDirection(const TrackerGeometry * theGeometry, const TTStub<T> *stub) {
+GlobalVector findGlobalDirection(const Phase2TrackerGeomDetUnit * geomDetUnit0, const Phase2TrackerGeomDetUnit * geomDetUnit1, const TTStub<T> *stub) {
   /// Get average position of Clusters composing the Stub
-  GlobalPoint innerHitPosition = findAverageGlobalPosition( theGeometry, stub->getClusterRef(0).get() );
-  GlobalPoint outerHitPosition = findAverageGlobalPosition( theGeometry, stub->getClusterRef(1).get() );
+  GlobalPoint innerHitPosition = findAverageGlobalPosition( geomDetUnit0, stub->getClusterRef(0).get() );
+  GlobalPoint outerHitPosition = findAverageGlobalPosition( geomDetUnit1, stub->getClusterRef(1).get() );
 
   /// Calculate the direction
   GlobalVector directionVector( outerHitPosition.x()-innerHitPosition.x(),
@@ -80,7 +83,10 @@ GlobalVector findGlobalDirection(const TrackerGeometry * theGeometry, const TTSt
   return directionVector;
 }
 
+static std::map<unsigned, unsigned> stackIdToGeoIdMap;
+
 }  // namespace
+
 
 NtupleTTStubs::NtupleTTStubs(const edm::ParameterSet& iConfig) :
   inputTag_    (iConfig.getParameter<edm::InputTag>("inputTag")),
@@ -144,18 +150,36 @@ NtupleTTStubs::~NtupleTTStubs() {}
 
 void NtupleTTStubs::beginRun(const edm::Run& iRun, const edm::EventSetup& iSetup) {
     /// Geometry setup
-    edm::ESHandle<TrackerTopology> topologyHandle;
-    iSetup.get<IdealGeometryRecord>().get(topologyHandle);
-    theTopology = topologyHandle.product();
-
     edm::ESHandle<TrackerGeometry> geometryHandle;
     iSetup.get<TrackerDigiGeometryRecord>().get(geometryHandle);
     theGeometry = geometryHandle.product();
+
+    edm::ESHandle<TrackerTopology> topologyHandle;
+    iSetup.get<TrackerTopologyRcd>().get(topologyHandle);
+    theTopology = topologyHandle.product();
 
     /// Magnetic field setup
     edm::ESHandle<MagneticField> magneticFieldHandle;
     iSetup.get<IdealMagneticFieldRecord>().get(magneticFieldHandle);
     theMagneticField = magneticFieldHandle.product();
+
+    // _________________________________________________________________________
+    // Make a map for stackId --> geoId
+    stackIdToGeoIdMap.clear();
+    for (auto const & det_u : theGeometry->detUnits()) {
+        DetId detId = det_u->geographicalId();
+
+        if (detId.subdetId()!=StripSubdetector::TOB && detId.subdetId()!=StripSubdetector::TID)  // only run on outer tracker
+            continue;
+        if (!theTopology->isLower(detId))  // loop on the stacks: choose the lower arbitrarily
+            continue;
+        DetId stackDetId = theTopology->stack(detId);
+        stackIdToGeoIdMap[stackDetId.rawId()] = detId.rawId();
+        //std::cout << theTopology->print(detId) << std::endl;
+
+        const Phase2TrackerGeomDetUnit* pixdet = dynamic_cast<const Phase2TrackerGeomDetUnit*>(det_u);
+        assert(pixdet);
+    }
 }
 
 void NtupleTTStubs::endRun(const edm::Run& iRun, const edm::EventSetup& iSetup) {}
@@ -203,6 +227,7 @@ void NtupleTTStubs::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
     std::auto_ptr<std::vector<std::vector<int> > >      v_tpIds         (new std::vector<std::vector<int> >());
     //std::auto_ptr<std::vector<std::vector<float> > >    v_fractions     (new std::vector<std::vector<float> >());
     std::auto_ptr<unsigned>                             v_size          (new unsigned(0));
+
 
     // _________________________________________________________________________
     /// Digi
@@ -258,12 +283,15 @@ void NtupleTTStubs::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
                 //if (!selector_(*it))
                 //    continue;
 
-                const DetId geoId0     = it->getDetId();
-                const DetId geoId1     = theTopology->partnerDetId(geoId0);
-                const DetId stackDetId = theTopology->stack(geoId0);
 
-                bool isBarrel = (geoId0.subdetId() == StripSubdetector::TOB);
-                bool isEndcap = (geoId0.subdetId() == StripSubdetector::TID);
+                const DetId stackDetId = it->getDetId();
+                const DetId geoId0     = stackIdToGeoIdMap.at(stackDetId.rawId());
+                const DetId geoId1     = theTopology->partnerDetId(geoId0);
+                assert(geoId0.det() == DetId::Detector::Tracker);
+
+                uint32_t subdet = geoId0.subdetId();
+                bool isBarrel = (subdet == StripSubdetector::TOB);
+                bool isEndcap = (subdet == StripSubdetector::TID);
                 if (!isBarrel && !isEndcap) {
                     edm::LogError("NtupleTTStubs") << "Inconsistent isBarrel: " << isBarrel << " vs isEndcap: " << isEndcap;
                 }
@@ -274,11 +302,17 @@ void NtupleTTStubs::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
                     edm::LogError("NtupleTTStubs") << "Inconsistent isPSModule: " << isPSModule << " vs isSSModule: " << isSSModule;
                 }
                 bool isLower  = theTopology->isLower(geoId0);
-                bool isUpper  = theTopology->isUpper(geoId0);
+                bool isUpper  = theTopology->isUpper(geoId1);
                 if (!isLower && !isUpper) {
                     edm::LogError("NtupleTTStubs") << "Inconsistent isLower: " << isLower << " vs isUpper: " << isUpper;
                 }
-                assert(isLower);
+
+                /// Module ID
+                const unsigned moduleId0 = ModuleIdHelper::getModuleId(theTopology, geoId0);
+                const unsigned moduleId1 = ModuleIdHelper::getModuleId(theTopology, geoId1);
+                edm::LogInfo("NtupleTTStubs") << theTopology->print(geoId0);
+                edm::LogInfo("NtupleTTStubs") << "geoId0: " << geoId0.rawId() << " geoId1: " << geoId1.rawId() << " modId0: " << moduleId0 << " modId1: " << moduleId1;
+                assert(moduleId0 == moduleId1);
 
                 /// Cluster
                 const ttclus_ref_t cluster0 = it->getClusterRef(0);
@@ -286,31 +320,23 @@ void NtupleTTStubs::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
                 const unsigned myClusRef0 = 0;  //FIXME: clusMap.get(cluster0);
                 const unsigned myClusRef1 = 0;  //FIXME: clusMap.get(cluster1);
 
-                /// Module ID
-                const unsigned moduleId0 = ModuleIdHelper::getModuleId(theTopology, geoId0);
-                const unsigned moduleId1 = ModuleIdHelper::getModuleId(theTopology, geoId1);
-                assert(moduleId0 == moduleId1);
-                edm::LogInfo("NtupleTTStubs") << "geoId0: " << geoId0.rawId() << " geoId1: " << geoId1.rawId() << " modId0: " << moduleId0 << " modId1: " << moduleId1;
+                /// Topology
+                const GeomDetUnit* geoUnit0 = theGeometry->idToDetUnit(geoId0);
+                const GeomDetUnit* geoUnit1 = theGeometry->idToDetUnit(geoId1);
+                const Phase2TrackerGeomDetUnit* pixUnit0 = dynamic_cast<const Phase2TrackerGeomDetUnit*>(geoUnit0);
+                const Phase2TrackerGeomDetUnit* pixUnit1 = dynamic_cast<const Phase2TrackerGeomDetUnit*>(geoUnit1);
+                const Surface::PositionType& surfPosition0 = pixUnit0->position();
+                const Surface::PositionType& surfPosition1 = pixUnit1->position();
+                double separation = (moduleId0 < 110000) ? surfPosition1.perp() - surfPosition0.perp() : ((moduleId0 < 180000) ? surfPosition1.z() - surfPosition0.z() : surfPosition0.z() - surfPosition1.z());
 
                 /// Positions, directions
-                const GlobalPoint&      globalPosition  = findGlobalPosition(theGeometry, &(*it));
-                const GlobalVector&     globalDirection = findGlobalDirection(theGeometry, &(*it));
+                const GlobalPoint&      globalPosition  = findGlobalPosition(pixUnit0, &(*it));
+                const GlobalVector&     globalDirection = findGlobalDirection(pixUnit0, pixUnit1, &(*it));
                 const MeasurementPoint& localCoord0     = cluster0->findAverageLocalCoordinates();
                 const MeasurementPoint& localCoord1     = cluster1->findAverageLocalCoordinates();
                 //double magfieldStrength = theMagneticField->inTesla(GlobalPoint(0,0,0)).z();
                 double roughPt = 0.;  //FIXME: theStackedGeometry->findRoughPt(magfieldStrength, &(*it));
                 edm::LogInfo("NtupleTTStubs") << "localCoord0: " << localCoord0.x() << "," << localCoord0.y() << " localCoord1: " << localCoord1.x() << "," << localCoord1.y();
-
-                /// Topology
-                using Phase2TrackerGeomDetUnit = PixelGeomDetUnit;
-                using Phase2TrackerTopology    = PixelTopology;
-                const GeomDetUnit* geoUnit0 = theGeometry->idToDetUnit(geoId0);
-                const GeomDetUnit* geoUnit1 = theGeometry->idToDetUnit(geoId1);
-                const Phase2TrackerGeomDetUnit* ph2tkGeoUnit0 = dynamic_cast<const Phase2TrackerGeomDetUnit*>(geoUnit0);
-                const Phase2TrackerGeomDetUnit* ph2tkGeoUnit1 = dynamic_cast<const Phase2TrackerGeomDetUnit*>(geoUnit1);
-                const Surface::PositionType& surfPosition0 = ph2tkGeoUnit0->position();
-                const Surface::PositionType& surfPosition1 = ph2tkGeoUnit1->position();
-                double separation = (moduleId0 < 110000) ? surfPosition1.perp() - surfPosition0.perp() : ((moduleId0 < 180000) ? surfPosition1.z() - surfPosition0.z() : surfPosition0.z() - surfPosition1.z());
 
                 /// Find cluster widths
                 unsigned clusWidth0 = cluster0->findWidth();

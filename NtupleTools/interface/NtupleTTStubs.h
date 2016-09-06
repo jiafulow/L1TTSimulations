@@ -9,7 +9,6 @@
 #include "DataFormats/L1TrackTrigger/interface/TTTypes.h"
 
 #include "DataFormats/TrackerCommon/interface/TrackerTopology.h"
-#include "Geometry/Records/interface/IdealGeometryRecord.h"
 #include "Geometry/Records/interface/TrackerDigiGeometryRecord.h"
 #include "Geometry/TrackerGeometryBuilder/interface/TrackerGeometry.h"
 #include "MagneticField/Engine/interface/MagneticField.h"
@@ -62,8 +61,8 @@ class NtupleTTStubs : public edm::EDProducer {
     virtual void endRun(const edm::Run&, const edm::EventSetup&);
 
     // For event setup
-    const TrackerTopology * theTopology;
     const TrackerGeometry * theGeometry;
+    const TrackerTopology * theTopology;
     const MagneticField* theMagneticField;
 
     const edm::InputTag inputTag_, inputTagMC_, inputTagClus_, inputTagDigi_, inputTagTP_;
