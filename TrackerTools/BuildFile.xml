@@ -1,5 +1,6 @@
 <use name="DataFormats/DetId"/>
-<use name="DataFormats/SiPixelDetId"/>
+<use name="DataFormats/TrackerCommon"/>
+<!--use name="DataFormats/SiPixelDetId"/-->
 
 <export>
   <lib name="1"/>
