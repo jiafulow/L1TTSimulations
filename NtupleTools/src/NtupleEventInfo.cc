@@ -17,12 +17,12 @@ NtupleEventInfo::~NtupleEventInfo() {}
 
 void NtupleEventInfo::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
 
-    std::auto_ptr<unsigned long long> v_event(new unsigned long long(0));
-    std::auto_ptr<unsigned>           v_run  (new unsigned(0));
-    std::auto_ptr<unsigned>           v_lumi (new unsigned(0));
-    std::auto_ptr<int>                v_bx   (new int(-1));
-    std::auto_ptr<int>                v_orbit(new int(-1));
-    std::auto_ptr<unsigned long long> v_time (new unsigned long long(0));
+    std::unique_ptr<unsigned long long> v_event(new unsigned long long(0));
+    std::unique_ptr<unsigned>           v_run  (new unsigned(0));
+    std::unique_ptr<unsigned>           v_lumi (new unsigned(0));
+    std::unique_ptr<int>                v_bx   (new int(-1));
+    std::unique_ptr<int>                v_orbit(new int(-1));
+    std::unique_ptr<unsigned long long> v_time (new unsigned long long(0));
 
     //__________________________________________________________________________
     *v_event = iEvent.id().event();
@@ -33,11 +33,11 @@ void NtupleEventInfo::produce(edm::Event& iEvent, const edm::EventSetup& iSetup)
     *v_time  = iEvent.time().value();
 
     //__________________________________________________________________________
-    iEvent.put(v_event, "event");
-    iEvent.put(v_run  , "run");
-    iEvent.put(v_lumi , "lumi");
-    iEvent.put(v_bx   , "bx");
-    iEvent.put(v_orbit, "orbit");
-    iEvent.put(v_time , "time");
+    iEvent.put(std::move(v_event), "event");
+    iEvent.put(std::move(v_run)  , "run");
+    iEvent.put(std::move(v_lumi) , "lumi");
+    iEvent.put(std::move(v_bx)   , "bx");
+    iEvent.put(std::move(v_orbit), "orbit");
+    iEvent.put(std::move(v_time) , "time");
 }
 

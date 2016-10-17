@@ -30,13 +30,13 @@ NtupleGenEventInfo::~NtupleGenEventInfo() {}
 
 void NtupleGenEventInfo::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
 
-    std::auto_ptr<int>                    v_nPV          (new int(-99.));
-    std::auto_ptr<std::vector<int> >      v_puNtrks      (new std::vector<int>());
-    std::auto_ptr<std::vector<float> >    v_puZpositions (new std::vector<float>());
-    std::auto_ptr<float>                  v_trueNPV      (new float(-99.));
-    std::auto_ptr<float>                  v_weightMC     (new float(-99.));
-    std::auto_ptr<float>                  v_weightPU     (new float(-99.));
-    std::auto_ptr<float>                  v_weightPDF    (new float(-99.));
+    std::unique_ptr<int>                    v_nPV          (new int(-99.));
+    std::unique_ptr<std::vector<int> >      v_puNtrks      (new std::vector<int>());
+    std::unique_ptr<std::vector<float> >    v_puZpositions (new std::vector<float>());
+    std::unique_ptr<float>                  v_trueNPV      (new float(-99.));
+    std::unique_ptr<float>                  v_weightMC     (new float(-99.));
+    std::unique_ptr<float>                  v_weightPU     (new float(-99.));
+    std::unique_ptr<float>                  v_weightPDF    (new float(-99.));
 
     //__________________________________________________________________________
     if (!iEvent.isRealData()) {
@@ -86,12 +86,12 @@ void NtupleGenEventInfo::produce(edm::Event& iEvent, const edm::EventSetup& iSet
     }
 
     //__________________________________________________________________________
-    iEvent.put(v_nPV         , prefix_ + "nPV"          + suffix_);
-    iEvent.put(v_puNtrks     , prefix_ + "puNtrks"      + suffix_);
-    iEvent.put(v_puZpositions, prefix_ + "puZpositions" + suffix_);
-    iEvent.put(v_trueNPV     , prefix_ + "trueNPV"      + suffix_);
-    iEvent.put(v_weightMC    , prefix_ + "weightMC"     + suffix_);
-    iEvent.put(v_weightPU    , prefix_ + "weightPU"     + suffix_);
-    iEvent.put(v_weightPDF   , prefix_ + "weightPDF"    + suffix_);
+    iEvent.put(std::move(v_nPV)         , prefix_ + "nPV"          + suffix_);
+    iEvent.put(std::move(v_puNtrks)     , prefix_ + "puNtrks"      + suffix_);
+    iEvent.put(std::move(v_puZpositions), prefix_ + "puZpositions" + suffix_);
+    iEvent.put(std::move(v_trueNPV)     , prefix_ + "trueNPV"      + suffix_);
+    iEvent.put(std::move(v_weightMC)    , prefix_ + "weightMC"     + suffix_);
+    iEvent.put(std::move(v_weightPU)    , prefix_ + "weightPU"     + suffix_);
+    iEvent.put(std::move(v_weightPDF)   , prefix_ + "weightPDF"    + suffix_);
 }
 

@@ -20,10 +20,10 @@ DummyProducer::DummyProducer(const edm::ParameterSet& iConfig) {
 }
 
 void DummyProducer::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
-    std::auto_ptr<std::vector<float> > dummies(new std::vector<float>());
+    std::unique_ptr<std::vector<float> > dummies(new std::vector<float>());
 
     dummies->push_back(-99.);
-    iEvent.put(dummies, "dummy");
+    iEvent.put(std::move(dummies), "dummy");
 }
 
 #include "FWCore/Framework/interface/MakerMacros.h"

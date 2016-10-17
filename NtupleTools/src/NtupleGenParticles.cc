@@ -31,21 +31,21 @@ NtupleGenParticles::~NtupleGenParticles() {}
 
 void NtupleGenParticles::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
 
-    std::auto_ptr<std::vector<float> >   v_px    (new std::vector<float>());
-    std::auto_ptr<std::vector<float> >   v_py    (new std::vector<float>());
-    std::auto_ptr<std::vector<float> >   v_pz    (new std::vector<float>());
-    std::auto_ptr<std::vector<float> >   v_E     (new std::vector<float>());
-    std::auto_ptr<std::vector<float> >   v_pt    (new std::vector<float>());
-    std::auto_ptr<std::vector<float> >   v_eta   (new std::vector<float>());
-    std::auto_ptr<std::vector<float> >   v_phi   (new std::vector<float>());
-    std::auto_ptr<std::vector<float> >   v_M     (new std::vector<float>());
-    std::auto_ptr<std::vector<float> >   v_vx    (new std::vector<float>());
-    std::auto_ptr<std::vector<float> >   v_vy    (new std::vector<float>());
-    std::auto_ptr<std::vector<float> >   v_vz    (new std::vector<float>());
-    std::auto_ptr<std::vector<int16_t> > v_charge(new std::vector<int16_t>());
-    std::auto_ptr<std::vector<int> >     v_pdgId (new std::vector<int>());
-    std::auto_ptr<std::vector<int> >     v_status(new std::vector<int>());
-    std::auto_ptr<unsigned>              v_size  (new unsigned(0));
+    std::unique_ptr<std::vector<float> >   v_px    (new std::vector<float>());
+    std::unique_ptr<std::vector<float> >   v_py    (new std::vector<float>());
+    std::unique_ptr<std::vector<float> >   v_pz    (new std::vector<float>());
+    std::unique_ptr<std::vector<float> >   v_E     (new std::vector<float>());
+    std::unique_ptr<std::vector<float> >   v_pt    (new std::vector<float>());
+    std::unique_ptr<std::vector<float> >   v_eta   (new std::vector<float>());
+    std::unique_ptr<std::vector<float> >   v_phi   (new std::vector<float>());
+    std::unique_ptr<std::vector<float> >   v_M     (new std::vector<float>());
+    std::unique_ptr<std::vector<float> >   v_vx    (new std::vector<float>());
+    std::unique_ptr<std::vector<float> >   v_vy    (new std::vector<float>());
+    std::unique_ptr<std::vector<float> >   v_vz    (new std::vector<float>());
+    std::unique_ptr<std::vector<int16_t> > v_charge(new std::vector<int16_t>());
+    std::unique_ptr<std::vector<int> >     v_pdgId (new std::vector<int>());
+    std::unique_ptr<std::vector<int> >     v_status(new std::vector<int>());
+    std::unique_ptr<unsigned>              v_size  (new unsigned(0));
 
     //__________________________________________________________________________
     if (!iEvent.isRealData()) {
@@ -90,19 +90,19 @@ void NtupleGenParticles::produce(edm::Event& iEvent, const edm::EventSetup& iSet
     }
 
     //__________________________________________________________________________
-    iEvent.put(v_px    , prefix_ + "px"    + suffix_);
-    iEvent.put(v_py    , prefix_ + "py"    + suffix_);
-    iEvent.put(v_pz    , prefix_ + "pz"    + suffix_);
-    iEvent.put(v_E     , prefix_ + "E"     + suffix_);
-    iEvent.put(v_pt    , prefix_ + "pt"    + suffix_);
-    iEvent.put(v_eta   , prefix_ + "eta"   + suffix_);
-    iEvent.put(v_phi   , prefix_ + "phi"   + suffix_);
-    iEvent.put(v_M     , prefix_ + "M"     + suffix_);
-    iEvent.put(v_vx    , prefix_ + "vx"    + suffix_);
-    iEvent.put(v_vy    , prefix_ + "vy"    + suffix_);
-    iEvent.put(v_vz    , prefix_ + "vz"    + suffix_);
-    iEvent.put(v_charge, prefix_ + "charge"+ suffix_);
-    iEvent.put(v_pdgId , prefix_ + "pdgId" + suffix_);
-    iEvent.put(v_status, prefix_ + "status"+ suffix_);
-    iEvent.put(v_size  , prefix_ + "size"  + suffix_);
+    iEvent.put(std::move(v_px)    , prefix_ + "px"    + suffix_);
+    iEvent.put(std::move(v_py)    , prefix_ + "py"    + suffix_);
+    iEvent.put(std::move(v_pz)    , prefix_ + "pz"    + suffix_);
+    iEvent.put(std::move(v_E)     , prefix_ + "E"     + suffix_);
+    iEvent.put(std::move(v_pt)    , prefix_ + "pt"    + suffix_);
+    iEvent.put(std::move(v_eta)   , prefix_ + "eta"   + suffix_);
+    iEvent.put(std::move(v_phi)   , prefix_ + "phi"   + suffix_);
+    iEvent.put(std::move(v_M)     , prefix_ + "M"     + suffix_);
+    iEvent.put(std::move(v_vx)    , prefix_ + "vx"    + suffix_);
+    iEvent.put(std::move(v_vy)    , prefix_ + "vy"    + suffix_);
+    iEvent.put(std::move(v_vz)    , prefix_ + "vz"    + suffix_);
+    iEvent.put(std::move(v_charge), prefix_ + "charge"+ suffix_);
+    iEvent.put(std::move(v_pdgId) , prefix_ + "pdgId" + suffix_);
+    iEvent.put(std::move(v_status), prefix_ + "status"+ suffix_);
+    iEvent.put(std::move(v_size)  , prefix_ + "size"  + suffix_);
 }
