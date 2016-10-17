@@ -19,12 +19,10 @@
 //#include "DataFormats/SiPixelDigi/interface/PixelDigi.h"
 //#include "DataFormats/SiPixelDigi/interface/PixelDigiCollection.h"
 #include "SimDataFormats/TrackerDigiSimLink/interface/PixelDigiSimLink.h"
-//#include "DataFormats/GeometryCommonDetAlgo/interface/MeasurementPoint.h"
-//#include "DataFormats/GeometryVector/interface/GlobalPoint.h"
 //#include "DataFormats/Common/interface/DetSetVector.h"
 //#include "DataFormats/Common/interface/DetSetVectorNew.h"
-//#include "SimTracker/TrackTriggerAssociation/interface/TTClusterAssociationMap.h"
-//#include "SimTracker/TrackTriggerAssociation/interface/TTStubAssociationMap.h"
+#include "SimTracker/TrackTriggerAssociation/interface/TTClusterAssociationMap.h"
+#include "SimTracker/TrackTriggerAssociation/interface/TTStubAssociationMap.h"
 
 
 class NtupleTTStubs : public edm::EDProducer {
@@ -33,24 +31,24 @@ class NtupleTTStubs : public edm::EDProducer {
     ~NtupleTTStubs();
 
     typedef Phase2TrackerDigi                     digi_t;
-    typedef PixelDigiSimLink                      digi_simlink_t;
-    typedef Ref_Phase2TrackerDigi_                digi_ref_t;
-
     typedef edm::DetSetVector<digi_t>             digi_dsv_t;
     typedef edm::DetSet<digi_t>                   digi_ds_t;
-    typedef edm::DetSetVector<digi_simlink_t>     digi_simlink_dsv_t;
-    typedef edm::DetSet<digi_simlink_t>           digi_simlink_ds_t;
+    typedef Ref_Phase2TrackerDigi_                digi_ref_t;
+
+    typedef PixelDigiSimLink                      digilink_t;
+    typedef edm::DetSetVector<digilink_t>         digilink_dsv_t;
+    typedef edm::DetSet<digilink_t>               digilink_ds_t;
 
     typedef TTCluster<digi_ref_t>                 ttclus_t;
     typedef edmNew::DetSetVector<ttclus_t>        ttclus_dsv_t;
     typedef edmNew::DetSet<ttclus_t>              ttclus_ds_t;
     typedef edm::Ref<ttclus_dsv_t, ttclus_t>      ttclus_ref_t;
-    //typedef TTClusterAssociationMap<digi_ref_t>   ttclus_assocmap_t;
+    typedef TTClusterAssociationMap<digi_ref_t>   ttclus_assocmap_t;
     typedef TTStub<digi_ref_t>                    ttstub_t;
     typedef edmNew::DetSetVector<ttstub_t>        ttstub_dsv_t;
     typedef edmNew::DetSet<ttstub_t>              ttstub_ds_t;
     typedef edm::Ref<ttstub_dsv_t, ttstub_t>      ttstub_ref_t;
-    //typedef TTStubAssociationMap<digi_ref_t>      ttstub_assocmap_t;
+    typedef TTStubAssociationMap<digi_ref_t>      ttstub_assocmap_t;
 
   private:
     //virtual void beginJob();
@@ -71,8 +69,8 @@ class NtupleTTStubs : public edm::EDProducer {
     StringCutObjectSelector<ttstub_t> selector_;
     const unsigned maxN_;
 
-    edm::EDGetTokenT<ttclus_dsv_t> clusToken_;
-    edm::EDGetTokenT<ttstub_dsv_t> stubToken_;
+    // Input collection tokens
+    edm::EDGetToken stubToken_, assocmapToken_, clusToken_, digiToken_, digilinkToken_, tpToken_;
 };
 
 #endif

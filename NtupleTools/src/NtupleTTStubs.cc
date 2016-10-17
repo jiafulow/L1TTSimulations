@@ -1,11 +1,13 @@
 #include "L1TTSimulations/NtupleTools/interface/NtupleTTStubs.h"
 
-#include "Geometry/TrackerGeometryBuilder/interface/PixelGeomDetUnit.h"
 #include "Geometry/CommonTopologies/interface/PixelTopology.h"
-//#include "Geometry/TrackerGeometryBuilder/interface/PixelGeomDetUnit.h"
-//#include "Geometry/TrackerGeometryBuilder/interface/StripGeomDetUnit.h"
+#include "Geometry/TrackerGeometryBuilder/interface/PixelGeomDetUnit.h"
+#include "Geometry/TrackerGeometryBuilder/interface/StripGeomDetUnit.h"
 
 #include "L1TTSimulations/TrackerTools/interface/ModuleIdHelper.h"
+#include "L1TTSimulations/NtupleTools/interface/MapTrackingParticles.h"
+#include "L1TTSimulations/NtupleTools/interface/MapTrackerDigis.h"
+#include "L1TTSimulations/NtupleTools/interface/MapTTClusters.h"
 
 using Phase2TrackerGeomDetUnit = PixelGeomDetUnit;
 using Phase2TrackerTopology    = PixelTopology;
@@ -79,7 +81,6 @@ GlobalVector findGlobalDirection(const Phase2TrackerGeomDetUnit * geomDetUnit0, 
   GlobalVector directionVector( outerHitPosition.x()-innerHitPosition.x(),
                                 outerHitPosition.y()-innerHitPosition.y(),
                                 outerHitPosition.z()-innerHitPosition.z() );
-
   return directionVector;
 }
 
@@ -97,10 +98,14 @@ NtupleTTStubs::NtupleTTStubs(const edm::ParameterSet& iConfig) :
   prefix_      (iConfig.getParameter<std::string>("prefix")),
   suffix_      (iConfig.getParameter<std::string>("suffix")),
   selector_    (iConfig.existsAs<std::string>("cut") ? iConfig.getParameter<std::string>("cut") : "", true),
-  maxN_        (iConfig.getParameter<unsigned>("maxN")) {
-
-    clusToken_ = consumes<ttclus_dsv_t>(inputTagClus_);
-    stubToken_ = consumes<ttstub_dsv_t>(inputTag_);
+  maxN_        (iConfig.getParameter<unsigned>("maxN"))
+{
+    stubToken_     = consumes<ttstub_dsv_t>              (inputTag_);
+    assocmapToken_ = consumes<ttstub_assocmap_t>         (inputTagMC_);
+    clusToken_     = consumes<ttclus_dsv_t>              (inputTagClus_);
+    digiToken_     = consumes<digi_dsv_t>                (inputTagDigi_);
+    digilinkToken_ = consumes<digilink_dsv_t>            (inputTagDigi_);
+    tpToken_       = consumes<TrackingParticleCollection>(inputTagTP_);
 
     // Remember r is rho in cylindrical coordinate system
     produces<std::vector<float> >                   (prefix_ + "x"              + suffix_);
@@ -125,8 +130,7 @@ NtupleTTStubs::NtupleTTStubs(const edm::ParameterSet& iConfig) :
     produces<std::vector<unsigned> >                (prefix_ + "clusRef1"       + suffix_);
     produces<std::vector<unsigned> >                (prefix_ + "clusWidth0"     + suffix_);
     produces<std::vector<unsigned> >                (prefix_ + "clusWidth1"     + suffix_);
-    produces<std::vector<unsigned> >                (prefix_ + "ndigis"         + suffix_);
-    produces<std::vector<std::vector<int> > >       (prefix_ + "digiChannels"   + suffix_);
+    produces<std::vector<std::vector<unsigned> > >  (prefix_ + "digiChannels"   + suffix_);
     produces<std::vector<std::vector<unsigned> > >  (prefix_ + "digiRefs"       + suffix_);
     produces<std::vector<float> >                   (prefix_ + "trigDist"       + suffix_);
     produces<std::vector<float> >                   (prefix_ + "trigOffset"     + suffix_);
@@ -208,8 +212,7 @@ void NtupleTTStubs::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
     std::unique_ptr<std::vector<unsigned> >               v_clusRef1      (new std::vector<unsigned>());
     std::unique_ptr<std::vector<unsigned> >               v_clusWidth0    (new std::vector<unsigned>());
     std::unique_ptr<std::vector<unsigned> >               v_clusWidth1    (new std::vector<unsigned>());
-    std::unique_ptr<std::vector<unsigned> >               v_ndigis        (new std::vector<unsigned>());
-    std::unique_ptr<std::vector<std::vector<int> > >      v_digiChannels  (new std::vector<std::vector<int> >());
+    std::unique_ptr<std::vector<std::vector<unsigned> > > v_digiChannels  (new std::vector<std::vector<unsigned> >());
     std::unique_ptr<std::vector<std::vector<unsigned> > > v_digiRefs      (new std::vector<std::vector<unsigned> >());
     std::unique_ptr<std::vector<float> >                  v_trigDist      (new std::vector<float>());
     std::unique_ptr<std::vector<float> >                  v_trigOffset    (new std::vector<float>());
@@ -234,21 +237,28 @@ void NtupleTTStubs::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
     edm::Handle<digi_dsv_t> digis;
     //if (inputTagDigi_.encode() != "")
     //    iEvent.getByLabel(inputTagDigi_, digis);
+    if (inputTagDigi_.encode() != "" && !digiToken_.isUninitialized())
+        iEvent.getByToken(digiToken_, digis);
 
-    //MapPixelDigis digiMap;
-    //digiMap.setup(digis, theGeometry);
+    MapTrackerDigis digiMap;
+    digiMap.setup(digis);
 
     /// DigiSimLink
-    edm::Handle<digi_simlink_dsv_t> digiSimLinks;
+    edm::Handle<digilink_dsv_t> digilinks;
     //if (inputTagDigi_.encode() != "" && !iEvent.isRealData())
-    //    iEvent.getByLabel(inputTagDigi_, digiSimLinks);
+    //    iEvent.getByLabel(inputTagDigi_, digilinks);
+    if (inputTagDigi_.encode() != "" && !iEvent.isRealData() && !digilinkToken_.isUninitialized())
+        iEvent.getByToken(digilinkToken_, digilinks);
 
     /// Prepare a map of simTrack -> trackingParticle
-    //edm::Handle<TrackingParticleCollection> trackingParticleHandle;
-    //iEvent.getByLabel(inputTagTP_, trackingParticleHandle);
+    edm::Handle<TrackingParticleCollection> trackingParticles;
+    //if (!iEvent.isRealData())
+    //  iEvent.getByLabel(inputTagTP_, trackingParticles);
+    if (!iEvent.isRealData() && !tpToken_.isUninitialized())
+        iEvent.getByToken(tpToken_, trackingParticles);
 
-    //MapTrackingParticles trkToTPMap;
-    //trkToTPMap.setup(trackingParticleHandle);
+    MapTrackingParticles trkToTPMap;
+    trkToTPMap.setup(trackingParticles);
 
     /// TTCluster
     edm::Handle<ttclus_dsv_t> clusters;
@@ -256,8 +266,8 @@ void NtupleTTStubs::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
     if (!clusToken_.isUninitialized())
         iEvent.getByToken(clusToken_, clusters);
 
-    //MapTTClusters clusMap;
-    //clusMap.setup(pixelDigiTTClusters);
+    MapTTClusters clusMap;
+    clusMap.setup(clusters);
 
     /// TTStub
     edm::Handle<ttstub_dsv_t> stubs;
@@ -266,12 +276,14 @@ void NtupleTTStubs::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
         iEvent.getByToken(stubToken_, stubs);
 
     /// MC truth association map
-    //edm::Handle<ttstub_assocmap_t> stubs_assocmap;
-    //if (!iEvent.isRealData()) {
-    //    iEvent.getByLabel(inputTagMC_, stubs_assocmap);
-    //}
+    edm::Handle<ttstub_assocmap_t> assocmap;
+    //if (!iEvent.isRealData())
+    //    iEvent.getByLabel(inputTagMC_, assocmap);
+    if (!iEvent.isRealData() && !assocmapToken_.isUninitialized())
+        iEvent.getByToken(assocmapToken_, assocmap);
 
-    if (stubs.isValid()) {
+
+    if (clusters.isValid() && stubs.isValid()) {
         edm::LogInfo("NtupleTTStubs") << "Size: " << stubs->size();
 
         unsigned n = 0;
@@ -317,8 +329,8 @@ void NtupleTTStubs::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
                 /// Cluster
                 const ttclus_ref_t cluster0 = it->getClusterRef(0);
                 const ttclus_ref_t cluster1 = it->getClusterRef(1);
-                const unsigned myClusRef0 = 0;  //FIXME: clusMap.get(cluster0);
-                const unsigned myClusRef1 = 0;  //FIXME: clusMap.get(cluster1);
+                const unsigned myClusRef0 = clusMap.get(MapTTClusters::reference_t(cluster0->getDetId().rawId(), cluster0->getHits()));
+                const unsigned myClusRef1 = clusMap.get(MapTTClusters::reference_t(cluster1->getDetId().rawId(), cluster1->getHits()));
 
                 /// Topology
                 const GeomDetUnit* geoUnit0 = theGeometry->idToDetUnit(geoId0);
@@ -342,20 +354,19 @@ void NtupleTTStubs::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
                 unsigned clusWidth0 = cluster0->findWidth();
                 unsigned clusWidth1 = cluster1->findWidth();
 
-                /// Find digis
+                /// Find digis (only the lower cluster)
                 const std::vector<int>& theCols = cluster0->getCols();
                 const std::vector<int>& theRows = cluster0->getRows();
                 assert(theCols.size() != 0 && theRows.size() != 0 && theCols.size() == theRows.size());
 
-                unsigned ndigis = theCols.size();
-                std::vector<int> digiChannels;  //FIXME
-                std::vector<unsigned> digiRefs;  //FIXME
-                //for (unsigned idigi=0; idigi<ndigis; ++idigi) {
-                //    const int channel = Phase2TrackerDigi::pixelToChannel(theRows.at(idigi), theCols.at(idigi));
-                //    const unsigned ref = digiMap.size() > 0 ? digiMap.get(geoId0.rawId(), channel) : 0;
-                //    digiChannels.push_back(channel);
-                //    digiRefs.push_back(ref);
-                //}
+                std::vector<unsigned> digiChannels;
+                std::vector<unsigned> digiRefs;
+                for (unsigned idigi=0; idigi<theCols.size(); ++idigi) {
+                    const unsigned channel = Phase2TrackerDigi::pixelToChannel(theRows.at(idigi), theCols.at(idigi));
+                    const MapTrackerDigis::reference_t map_ref(geoId0.rawId(), channel);
+                    digiChannels.push_back(channel);
+                    digiRefs.push_back(digiMap.get(map_ref));
+                }
 
 
                 v_x->push_back(globalPosition.x());                   // sviret/HL_LHC: STUB_x
@@ -380,7 +391,6 @@ void NtupleTTStubs::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
                 v_clusRef1->push_back(myClusRef1);
                 v_clusWidth0->push_back(clusWidth0);
                 v_clusWidth1->push_back(clusWidth1);
-                v_ndigis->push_back(ndigis);
                 v_digiChannels->push_back(digiChannels);
                 v_digiRefs->push_back(digiRefs);
                 v_trigDist->push_back(it->getTriggerDisplacement());  //                            (in full-strip units)
@@ -402,66 +412,69 @@ void NtupleTTStubs::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
                 //v_fractions->push_back(std::vector<float>());
 
                 /// Retrieve MC association
-                //if (stubs_assocmap.isValid()) {
-                //    ref_stub iref = edmNew::makeRefTo(pixelDigiTTStubs, it);
-                //    v_isGenuine->back() = mcAssocTTStubs->isGenuine(iref);
-                //    v_isUnknown->back() = mcAssocTTStubs->isUnknown(iref);
-                //    v_isCombinatoric->back() = mcAssocTTStubs->isCombinatoric(iref);
-                //    const edm::Ptr<TrackingParticle> tpptr = mcAssocTTStubs->findTrackingParticlePtr(iref);
-                //    if (tpptr.isNonnull()) {
-                //        assert(v_isGenuine->back() == true);
-                //        v_tpId->back() = tpptr.key();
-                //        v_pdgId->back() = tpptr->pdgId();
-                //        v_simPt->back() = tpptr->pt();
-                //        v_simEta->back() = tpptr->eta();
-                //        v_simPhi->back() = tpptr->phi();
-                //    }
-                //}
+                if (assocmap.isValid()) {
+                    const ttstub_ref_t aref = edmNew::makeRefTo(stubs, it);
+                    v_isGenuine->back()      = assocmap->isGenuine(aref);
+                    v_isUnknown->back()      = assocmap->isUnknown(aref);
+                    v_isCombinatoric->back() = assocmap->isCombinatoric(aref);
+                    const edm::Ptr<TrackingParticle> tpptr = assocmap->findTrackingParticlePtr(aref);
+                    if (tpptr.isNonnull()) {
+                        assert(v_isGenuine->back() == true);
+                        v_tpId->back() = tpptr.key();
+                        v_pdgId->back() = tpptr->pdgId();
+                        v_simPt->back() = tpptr->pt();
+                        v_simEta->back() = tpptr->eta();
+                        v_simPhi->back() = tpptr->phi();
+                    }
+                }
 
                 /// Tracking particle association
-                //if (digis.isValid() && digiSimLinks.isValid()) {
-                //    std::vector<int> tpIds0;
-                //    std::vector<int> tpIds1;
-                //
-                //    const std::vector<Ref_PixelDigi_>& theHits0 = cluster0->getHits();
-                //    assert(theHits0.size() == theCols.size());
-                //
-                //    if (pixelDigiSimLinks->find(geoId0) != pixelDigiSimLinks->end()) {
-                //        const ds_digisimlink& simlink0 = (*pixelDigiSimLinks)[geoId0];
-                //        for (ds_digisimlink::const_iterator itsim = simlink0.data.begin(); itsim != simlink0.data.end(); ++itsim) {
-                //            for (unsigned ihit=0; ihit<theHits0.size(); ++ihit) {
-                //                if ((unsigned) theHits0.at(ihit)->channel() == itsim->channel()) {
-                //                    if (itsim->fraction() > 0.3)  // 0.3 is arbitrary
-                //                        tpIds0.push_back(trkToTPMap.get(itsim->SimTrackId(), itsim->eventId()));
-                //                }
-                //            }
-                //        }
-                //    }
-                //
-                //    const std::vector<Ref_PixelDigi_>& theHits1 = cluster1->getHits();
-                //
-                //    if (pixelDigiSimLinks->find(geoId1) != pixelDigiSimLinks->end()) {
-                //        const ds_digisimlink& simlink1 = (*pixelDigiSimLinks)[geoId1];
-                //        for (ds_digisimlink::const_iterator itsim = simlink1.data.begin(); itsim != simlink1.data.end(); ++itsim) {
-                //            for (unsigned ihit=0; ihit<theHits1.size(); ++ihit) {
-                //                if ((unsigned) theHits1.at(ihit)->channel() == itsim->channel()) {
-                //                    if (itsim->fraction() > 0.3)  // 0.3 is arbitrary
-                //                        tpIds1.push_back(trkToTPMap.get(itsim->SimTrackId(), itsim->eventId()));
-                //                }
-                //            }
-                //        }
-                //    }
-                //
-                //    // Find common elements in two vectors
-                //    std::vector<int> tpIds;
-                //    std::sort(tpIds0.begin(), tpIds0.end());
-                //    std::sort(tpIds1.begin(), tpIds1.end());
-                //    tpIds0.erase(std::unique(tpIds0.begin(), tpIds0.end()), tpIds0.end());
-                //    tpIds1.erase(std::unique(tpIds1.begin(), tpIds1.end()), tpIds1.end());
-                //    std::set_intersection(tpIds0.begin(), tpIds0.end(), tpIds1.begin(), tpIds1.end(),
-                //                          std::back_inserter(tpIds));
-                //    v_tpIds->back() = tpIds;
-                //}
+                if (digis.isValid() && digilinks.isValid()) {
+                    std::vector<int> tpIds0;
+                    std::vector<int> tpIds1;
+
+                    const std::vector<digi_ref_t>& theHits0 = cluster0->getHits();
+                    assert(theHits0.size() == theCols.size());
+
+                    if (digilinks->find(geoId0) != digilinks->end()) {
+                        const digilink_ds_t& digilink0 = (*digilinks)[geoId0];
+                        for (digilink_ds_t::const_iterator itlink = digilink0.data.begin(); itlink != digilink0.data.end(); ++itlink) {
+                            for (unsigned ihit=0; ihit<theHits0.size(); ++ihit) {
+                                if (theHits0.at(ihit)->channel() == itlink->channel()) {
+                                    if (itlink->fraction() > 0.3) {  // 0.3 is arbitrary
+                                        const MapTrackingParticles::reference_t map_ref(itlink->SimTrackId(), itlink->eventId());
+                                        tpIds0.push_back(trkToTPMap.get(map_ref));
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    const std::vector<digi_ref_t>& theHits1 = cluster1->getHits();
+
+                    if (digilinks->find(geoId1) != digilinks->end()) {
+                        const digilink_ds_t& digilink1 = (*digilinks)[geoId1];
+                        for (digilink_ds_t::const_iterator itlink = digilink1.data.begin(); itlink != digilink1.data.end(); ++itlink) {
+                            for (unsigned ihit=0; ihit<theHits1.size(); ++ihit) {
+                                if (theHits1.at(ihit)->channel() == itlink->channel()) {
+                                    if (itlink->fraction() > 0.3) {  // 0.3 is arbitrary
+                                        const MapTrackingParticles::reference_t map_ref(itlink->SimTrackId(), itlink->eventId());
+                                        tpIds1.push_back(trkToTPMap.get(map_ref));
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Find common elements in two vectors
+                    std::vector<int> tpIds;
+                    std::sort(tpIds0.begin(), tpIds0.end());
+                    std::sort(tpIds1.begin(), tpIds1.end());
+                    tpIds0.erase(std::unique(tpIds0.begin(), tpIds0.end()), tpIds0.end());
+                    tpIds1.erase(std::unique(tpIds1.begin(), tpIds1.end()), tpIds1.end());
+                    std::set_intersection(tpIds0.begin(), tpIds0.end(), tpIds1.begin(), tpIds1.end(), std::back_inserter(tpIds));
+                    v_tpIds->back() = tpIds;
+                }
 
                 n++;
             }
@@ -496,7 +509,6 @@ void NtupleTTStubs::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
     iEvent.put(std::move(v_clusRef1)      , prefix_ + "clusRef1"       + suffix_);
     iEvent.put(std::move(v_clusWidth0)    , prefix_ + "clusWidth0"     + suffix_);
     iEvent.put(std::move(v_clusWidth1)    , prefix_ + "clusWidth1"     + suffix_);
-    iEvent.put(std::move(v_ndigis)        , prefix_ + "ndigis"         + suffix_);
     iEvent.put(std::move(v_digiChannels)  , prefix_ + "digiChannels"   + suffix_);
     iEvent.put(std::move(v_digiRefs)      , prefix_ + "digiRefs"       + suffix_);
     iEvent.put(std::move(v_trigDist)      , prefix_ + "trigDist"       + suffix_);
