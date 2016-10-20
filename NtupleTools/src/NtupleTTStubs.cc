@@ -5,9 +5,7 @@
 #include "Geometry/TrackerGeometryBuilder/interface/StripGeomDetUnit.h"
 
 #include "L1TTSimulations/TrackerTools/interface/ModuleIdHelper.h"
-#include "L1TTSimulations/NtupleTools/interface/MapTrackingParticles.h"
-#include "L1TTSimulations/NtupleTools/interface/MapTrackerDigis.h"
-#include "L1TTSimulations/NtupleTools/interface/MapTTClusters.h"
+#include "L1TTSimulations/NtupleTools/interface/NtupleCollectionMap.h"
 
 using Phase2TrackerGeomDetUnit = PixelGeomDetUnit;
 using Phase2TrackerTopology    = PixelTopology;
@@ -240,7 +238,7 @@ void NtupleTTStubs::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
     if (inputTagDigi_.encode() != "" && !digiToken_.isUninitialized())
         iEvent.getByToken(digiToken_, digis);
 
-    MapTrackerDigis digiMap;
+    TrackerDigiCollectionMap digiMap;
     digiMap.setup(digis);
 
     /// DigiSimLink
@@ -250,14 +248,14 @@ void NtupleTTStubs::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
     if (inputTagDigi_.encode() != "" && !iEvent.isRealData() && !digilinkToken_.isUninitialized())
         iEvent.getByToken(digilinkToken_, digilinks);
 
-    /// Prepare a map of simTrack -> trackingParticle
+    /// TrackingParticle
     edm::Handle<TrackingParticleCollection> trackingParticles;
     //if (!iEvent.isRealData())
     //  iEvent.getByLabel(inputTagTP_, trackingParticles);
     if (!iEvent.isRealData() && !tpToken_.isUninitialized())
         iEvent.getByToken(tpToken_, trackingParticles);
 
-    MapTrackingParticles trkToTPMap;
+    TrackingParticleCollectionMap trkToTPMap;
     trkToTPMap.setup(trackingParticles);
 
     /// TTCluster
@@ -266,7 +264,7 @@ void NtupleTTStubs::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
     if (!clusToken_.isUninitialized())
         iEvent.getByToken(clusToken_, clusters);
 
-    MapTTClusters clusMap;
+    TTClusterCollectionMap clusMap;
     clusMap.setup(clusters);
 
     /// TTStub
@@ -329,8 +327,10 @@ void NtupleTTStubs::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
                 /// Cluster
                 const ttclus_ref_t cluster0 = it->getClusterRef(0);
                 const ttclus_ref_t cluster1 = it->getClusterRef(1);
-                const unsigned myClusRef0 = clusMap.get(MapTTClusters::reference_t(cluster0->getDetId().rawId(), cluster0->getHits()));
-                const unsigned myClusRef1 = clusMap.get(MapTTClusters::reference_t(cluster1->getDetId().rawId(), cluster1->getHits()));
+                const TTClusterCollectionMap::identifier_type myClusId0(cluster0->getDetId().rawId(), cluster0->getHits());
+                const TTClusterCollectionMap::identifier_type myClusId1(cluster1->getDetId().rawId(), cluster1->getHits());
+                const unsigned myClusRef0 = clusMap.get_index(myClusId0);
+                const unsigned myClusRef1 = clusMap.get_index(myClusId1);
 
                 /// Topology
                 const GeomDetUnit* geoUnit0 = theGeometry->idToDetUnit(geoId0);
@@ -363,9 +363,9 @@ void NtupleTTStubs::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
                 std::vector<unsigned> digiRefs;
                 for (unsigned idigi=0; idigi<theCols.size(); ++idigi) {
                     const unsigned channel = Phase2TrackerDigi::pixelToChannel(theRows.at(idigi), theCols.at(idigi));
-                    const MapTrackerDigis::reference_t map_ref(geoId0.rawId(), channel);
+                    const TrackerDigiCollectionMap::identifier_type map_id(geoId0.rawId(), channel);
                     digiChannels.push_back(channel);
-                    digiRefs.push_back(digiMap.get(map_ref));
+                    digiRefs.push_back(digiMap.get_index(map_id));
                 }
 
 
@@ -442,8 +442,8 @@ void NtupleTTStubs::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
                             for (unsigned ihit=0; ihit<theHits0.size(); ++ihit) {
                                 if (theHits0.at(ihit)->channel() == itlink->channel()) {
                                     if (itlink->fraction() > 0.3) {  // 0.3 is arbitrary
-                                        const MapTrackingParticles::reference_t map_ref(itlink->SimTrackId(), itlink->eventId());
-                                        tpIds0.push_back(trkToTPMap.get(map_ref));
+                                        const TrackingParticleCollectionMap::identifier_type map_id(itlink->eventId(), itlink->SimTrackId());
+                                        tpIds0.push_back(trkToTPMap.get_index(map_id));
                                     }
                                 }
                             }
@@ -458,8 +458,8 @@ void NtupleTTStubs::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
                             for (unsigned ihit=0; ihit<theHits1.size(); ++ihit) {
                                 if (theHits1.at(ihit)->channel() == itlink->channel()) {
                                     if (itlink->fraction() > 0.3) {  // 0.3 is arbitrary
-                                        const MapTrackingParticles::reference_t map_ref(itlink->SimTrackId(), itlink->eventId());
-                                        tpIds1.push_back(trkToTPMap.get(map_ref));
+                                        const TrackingParticleCollectionMap::identifier_type map_id(itlink->eventId(), itlink->SimTrackId());
+                                        tpIds1.push_back(trkToTPMap.get_index(map_id));
                                     }
                                 }
                             }
