@@ -5,8 +5,8 @@ __init__.py
 # ROOT
 *.d
 *.so
+*.pcm
 *.root
-AutoDict_*
 
 # Other
 *~

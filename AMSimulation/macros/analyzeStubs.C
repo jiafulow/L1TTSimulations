@@ -2,9 +2,9 @@
 
 #include <iostream>
 
-void analyze() {
+void analyzeStubs() {
 
-    //TString filename = "root://cmsxrootd-site.fnal.gov//store/user/l1upgrades/SLHC/GEN/Demo_Emulator/stubs_tt27_300M_emu.root";
+    //TString filename = "root://cmsxrootd-site.fnal.gov//store/group/l1upgrades/SLHC/GEN/Demo_Emulator/stubs_tt27_300M_emu.root";
     TString filename = "root://xrootd2.ihepa.ufl.edu//store/user/jiafulow/L1TrackTrigger/6_2_0_SLHC25p3/Demo_Emulator/stubs_tt27_300M_emu.root";
 
     // Open the file
@@ -34,19 +34,17 @@ void analyze() {
         float vz     = reader.vp_vz    ->front();
         int   charge = reader.vp_charge->front();
 
-        std::cout << "ievt: " << ievt
+        std::cout << "ievt: "     << ievt
                   << " muon pT: " << pt
-                  << " eta: " << eta
-                  << " phi: " << phi
-                  << " vz: "  << vz
+                  << " eta: "     << eta
+                  << " phi: "     << phi
+                  << " vz: "      << vz
                   << std::endl;
 
-        // Get number of stubs
-        unsigned nstubs = reader.vb_modId->size();
-
         // Loop over stubs
-        for (unsigned istub=0; istub < nstubs; ++istub) {
-
+        unsigned nstubs = reader.vb_modId->size();
+        std::cout << "Num of stubs: " << nstubs << std::endl;
+        for (unsigned istub = 0; istub < nstubs; ++istub) {
             // Get the variables
             // See TTStubReader.h for more info
             float    stub_z        = reader.vb_z       ->at(istub);
@@ -59,13 +57,13 @@ void analyze() {
             unsigned stub_modId    = reader.vb_modId   ->at(istub);
             int      stub_tpId     = reader.vb_tpId    ->at(istub);
 
-            std::cout << ".. istub: " << istub
-                      << " module ID: " << stub_modId
-                      << " local phi: " << stub_coordx
-                      << " z: " << stub_coordy
-                      << " global phi: " << stub_phi
-                      << " z: " << stub_z
-                      << " r: " << stub_r
+            std::cout << ".. istub: "     << istub
+                      << " module ID: "   << stub_modId
+                      << " local phi: "   << stub_coordx
+                      << " z: "           << stub_coordy
+                      << " global phi: "  << stub_phi
+                      << " z: "           << stub_z
+                      << " r: "           << stub_r
                       << std::endl;
 
         }  // end loop over stubs
