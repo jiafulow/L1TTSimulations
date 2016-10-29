@@ -21,7 +21,7 @@ NtupleGenParticles::NtupleGenParticles(const edm::ParameterSet& iConfig) :
     produces<std::vector<float> >   (prefix_ + "vx"    + suffix_);
     produces<std::vector<float> >   (prefix_ + "vy"    + suffix_);
     produces<std::vector<float> >   (prefix_ + "vz"    + suffix_);
-    produces<std::vector<int16_t> > (prefix_ + "charge"+ suffix_);
+    produces<std::vector<int> >     (prefix_ + "charge"+ suffix_);
     produces<std::vector<int> >     (prefix_ + "pdgId" + suffix_);
     produces<std::vector<int> >     (prefix_ + "status"+ suffix_);
     produces<unsigned>              (prefix_ + "size"  + suffix_);
@@ -42,7 +42,7 @@ void NtupleGenParticles::produce(edm::Event& iEvent, const edm::EventSetup& iSet
     std::unique_ptr<std::vector<float> >   v_vx    (new std::vector<float>());
     std::unique_ptr<std::vector<float> >   v_vy    (new std::vector<float>());
     std::unique_ptr<std::vector<float> >   v_vz    (new std::vector<float>());
-    std::unique_ptr<std::vector<int16_t> > v_charge(new std::vector<int16_t>());
+    std::unique_ptr<std::vector<int> >     v_charge(new std::vector<int>());
     std::unique_ptr<std::vector<int> >     v_pdgId (new std::vector<int>());
     std::unique_ptr<std::vector<int> >     v_status(new std::vector<int>());
     std::unique_ptr<unsigned>              v_size  (new unsigned(0));

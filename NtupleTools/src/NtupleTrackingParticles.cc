@@ -20,7 +20,7 @@ NtupleTrackingParticles::NtupleTrackingParticles(const edm::ParameterSet& iConfi
     produces<std::vector<float> >    (prefix_ + "vx"        + suffix_);
     produces<std::vector<float> >    (prefix_ + "vy"        + suffix_);
     produces<std::vector<float> >    (prefix_ + "vz"        + suffix_);
-    produces<std::vector<float> >    (prefix_ + "charge"    + suffix_);
+    produces<std::vector<int> >      (prefix_ + "charge"    + suffix_);
     produces<std::vector<int> >      (prefix_ + "nhits"     + suffix_);
     produces<std::vector<int> >      (prefix_ + "ntkhits"   + suffix_);
     produces<std::vector<int> >      (prefix_ + "ntklayers" + suffix_);
@@ -50,7 +50,7 @@ void NtupleTrackingParticles::produce(edm::Event& iEvent, const edm::EventSetup&
     std::unique_ptr<std::vector<float> >    v_vx       (new std::vector<float>());
     std::unique_ptr<std::vector<float> >    v_vy       (new std::vector<float>());
     std::unique_ptr<std::vector<float> >    v_vz       (new std::vector<float>());
-    std::unique_ptr<std::vector<float> >    v_charge   (new std::vector<float>());
+    std::unique_ptr<std::vector<int> >      v_charge   (new std::vector<int>());
     std::unique_ptr<std::vector<int> >      v_nhits    (new std::vector<int>());
     std::unique_ptr<std::vector<int> >      v_ntkhits  (new std::vector<int>());
     std::unique_ptr<std::vector<int> >      v_ntklayers(new std::vector<int>());
@@ -82,6 +82,8 @@ void NtupleTrackingParticles::produce(edm::Event& iEvent, const edm::EventSetup&
                 if (!selector_(*it))
                     continue;
 
+                int charge = it->charge();  // TrackingParticle::charge() returns float, cast to int
+
                 // Signal event
                 bool signal = (it->eventId().event() == 0);
 
@@ -103,7 +105,7 @@ void NtupleTrackingParticles::produce(edm::Event& iEvent, const edm::EventSetup&
                 //}
 
                 // Primary: pT > 0.2 GeV, |rho0| < 0.5 cm, |z0| < 30 cm (Nicola Pozzobon's definition)
-                bool primary = (it->charge() != 0 && it->pt() > 0.2 && fabs(it->eta()) < 2.5 && sqrt(it->vx() * it->vx() + it->vy() * it->vy()) < 0.5 && fabs(it->vz()) < 30.0);
+                bool primary = (charge != 0 && it->pt() > 0.2 && fabs(it->eta()) < 2.5 && sqrt(it->vx() * it->vx() + it->vy() * it->vy()) < 0.5 && fabs(it->vz()) < 30.0);
                 //bool primary = (it->pt() > 0.2 && sqrt(it->vx() * it->vx() + it->vy() * it->vy()) < 0.5 && fabs(it->vz()) < 30.0);
                 //bool primary = (it->pt() > 0.2 && sqrt(it->vx() * it->vx() + it->vy() * it->vy()) < 0.1 && fabs(it->vz()) < 25.0);
 
@@ -115,7 +117,7 @@ void NtupleTrackingParticles::produce(edm::Event& iEvent, const edm::EventSetup&
                 v_pt->push_back(it->pt());
                 v_eta->push_back(it->eta());
                 v_phi->push_back(it->phi());
-                v_charge->push_back(it->charge());
+                v_charge->push_back(charge);
                 v_vx->push_back(it->vx()); // parent vertex
                 v_vy->push_back(it->vy());
                 v_vz->push_back(it->vz());
