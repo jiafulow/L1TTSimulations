@@ -42,8 +42,9 @@ void analyzeTracks() {
             int   charge  = reader.vp2_charge ->at(ipart);
             int   pdgId   = reader.vp2_pdgId  ->at(ipart);
             bool  primary = reader.vp2_primary->at(ipart);
+            bool  intime  = reader.vp2_intime ->at(ipart);
 
-            if (!(primary && pt > 3.))  continue;
+            if (!(primary && intime && pt > 3.))  continue;
             if (!(M_PI/4<phi && phi<M_PI/2 && 0.<eta && eta<2.2/3))  continue;  // within trigger tower
             std::cout << ".. ipart: " << ipart
                       << " pdgId: "   << pdgId
