@@ -235,8 +235,12 @@ void NtupleTTStubs::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
     edm::Handle<digi_dsv_t> digis;
     //if (inputTagDigi_.encode() != "")
     //    iEvent.getByLabel(inputTagDigi_, digis);
-    if (inputTagDigi_.encode() != "" && !digiToken_.isUninitialized())
+    if (inputTagDigi_.encode() != "" && !digiToken_.isUninitialized()) {
         iEvent.getByToken(digiToken_, digis);
+        if (!digis.isValid()) {
+            edm::LogError("NtupleTTStubs") << "Cannot get the product: " << inputTagDigi_;
+        }
+    }
 
     TrackerDigiCollectionMap digiMap;
     digiMap.setup(digis);
@@ -245,15 +249,23 @@ void NtupleTTStubs::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
     edm::Handle<digilink_dsv_t> digilinks;
     //if (inputTagDigi_.encode() != "" && !iEvent.isRealData())
     //    iEvent.getByLabel(inputTagDigi_, digilinks);
-    if (inputTagDigi_.encode() != "" && !iEvent.isRealData() && !digilinkToken_.isUninitialized())
+    if (inputTagDigi_.encode() != "" && !iEvent.isRealData() && !digilinkToken_.isUninitialized()) {
         iEvent.getByToken(digilinkToken_, digilinks);
+        if (!digilinks.isValid()) {
+            edm::LogError("NtupleTTStubs") << "Cannot get the product: " << inputTagDigi_;
+        }
+    }
 
     /// TrackingParticle
     edm::Handle<TrackingParticleCollection> trackingParticles;
     //if (!iEvent.isRealData())
     //  iEvent.getByLabel(inputTagTP_, trackingParticles);
-    if (!iEvent.isRealData() && !tpToken_.isUninitialized())
+    if (!iEvent.isRealData() && !tpToken_.isUninitialized()) {
         iEvent.getByToken(tpToken_, trackingParticles);
+        if (!trackingParticles.isValid()) {
+            edm::LogError("NtupleTTStubs") << "Cannot get the product: " << inputTagTP_;
+        }
+    }
 
     TrackingParticleCollectionMap trkToTPMap;
     trkToTPMap.setup(trackingParticles);
@@ -261,8 +273,12 @@ void NtupleTTStubs::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
     /// TTCluster
     edm::Handle<ttclus_dsv_t> clusters;
     //iEvent.getByLabel(inputTagClus_, clusters);
-    if (!clusToken_.isUninitialized())
+    if (!clusToken_.isUninitialized()) {
         iEvent.getByToken(clusToken_, clusters);
+        if (!clusters.isValid()) {
+            edm::LogError("NtupleTTStubs") << "Cannot get the product: " << inputTagClus_;
+        }
+    }
 
     TTClusterCollectionMap clusMap;
     clusMap.setup(clusters);
@@ -270,15 +286,23 @@ void NtupleTTStubs::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
     /// TTStub
     edm::Handle<ttstub_dsv_t> stubs;
     //iEvent.getByLabel(inputTag_, stubs);
-    if (!stubToken_.isUninitialized())
+    if (!stubToken_.isUninitialized()) {
         iEvent.getByToken(stubToken_, stubs);
+        if (!digis.isValid()) {
+            edm::LogError("NtupleTTStubs") << "Cannot get the product: " << inputTag_;
+        }
+    }
 
     /// MC truth association map
     edm::Handle<ttstub_assocmap_t> assocmap;
     //if (!iEvent.isRealData())
     //    iEvent.getByLabel(inputTagMC_, assocmap);
-    if (!iEvent.isRealData() && !assocmapToken_.isUninitialized())
+    if (!iEvent.isRealData() && !assocmapToken_.isUninitialized()) {
         iEvent.getByToken(assocmapToken_, assocmap);
+        if (!assocmap.isValid()) {
+            edm::LogError("NtupleTTStubs") << "Cannot get the product: " << inputTagMC_;
+        }
+    }
 
 
     if (clusters.isValid() && stubs.isValid()) {
@@ -480,9 +504,6 @@ void NtupleTTStubs::produce(edm::Event& iEvent, const edm::EventSetup& iSetup) {
             }
         }
         *v_size = v_x->size();
-
-    } else {
-        edm::LogError("NtupleTTStubs") << "Cannot get the product: " << inputTag_;
     }
 
 

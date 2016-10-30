@@ -41,9 +41,11 @@ process.GlobalTag = GlobalTag(process.GlobalTag, 'auto:run2_mc', '')
 ## Track trigger
 process.load('L1Trigger.TrackTrigger.TrackTrigger_cff')
 process.L1TrackTrigger_step = cms.Path(process.TrackTriggerClustersStubs)
+process.load('SimTracker.TrackTriggerAssociation.TrackTriggerAssociator_cff')
+process.L1TTAssociator_step = cms.Path(process.TrackTriggerAssociatorClustersStubs)
 
 ## Schedule definition
-process.schedule = cms.Schedule(process.L1TrackTrigger_step)
+process.schedule = cms.Schedule(process.L1TrackTrigger_step,process.L1TTAssociator_step)
 
 ## HL-LHC upgrade customization
 from SLHCUpgradeSimulations.Configuration.combinedCustoms import cust_2023tilted
