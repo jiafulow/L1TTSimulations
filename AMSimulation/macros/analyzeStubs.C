@@ -2,11 +2,11 @@
 
 #include <iostream>
 
+//TString filename = "root://cmsxrootd-site.fnal.gov//store/group/l1upgrades/SLHC/GEN/Demo_Emulator/stubs_tt27_300M_emu.root";
+TString filename = "root://xrootd2.ihepa.ufl.edu//store/user/jiafulow/L1TrackTrigger/6_2_0_SLHC25p3/Demo_Emulator/stubs_tt27_300M_emu.root";
+
+
 void analyzeStubs() {
-
-    //TString filename = "root://cmsxrootd-site.fnal.gov//store/group/l1upgrades/SLHC/GEN/Demo_Emulator/stubs_tt27_300M_emu.root";
-    TString filename = "root://xrootd2.ihepa.ufl.edu//store/user/jiafulow/L1TrackTrigger/6_2_0_SLHC25p3/Demo_Emulator/stubs_tt27_300M_emu.root";
-
     // Open the file
     std::cout << "Opening file..." << std::endl;
 
@@ -44,6 +44,7 @@ void analyzeStubs() {
         // Loop over stubs
         unsigned nstubs = reader.vb_modId->size();
         std::cout << "Num of stubs: " << nstubs << std::endl;
+
         for (unsigned istub = 0; istub < nstubs; ++istub) {
             // Get the variables
             // See TTStubReader.h for more info
@@ -72,4 +73,12 @@ void analyzeStubs() {
 
     }  // end loop over events
 
-}  // end analyze()
+}  // end analyzeStubs()
+
+#ifndef __CINT__
+int main()
+{
+  analyzeStubs();
+  return 0;
+}
+#endif

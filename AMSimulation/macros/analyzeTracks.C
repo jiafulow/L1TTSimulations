@@ -2,11 +2,11 @@
 
 #include <iostream>
 
+//TString filename = "/uscms_data/d3/ocerri/CMSTrigger/CMSSW_6_2_0_SLHC25_patch3/src/tt25_test/tracks_TTbar_PU140_sf1_nz8_L5x2.root";  // from Olmo
+TString filename = "root://xrootd2.ihepa.ufl.edu//store/user/jiafulow/L1TrackTrigger/6_2_0_SLHC25p3_results/tt25_test/tracks_TTbar_PU140_sf1_nz8_L5x2.root";  // from Olmo
+
+
 void analyzeTracks() {
-
-    TString filename = "root://cmsxrootd-site.fnal.gov//store/group/l1upgrades/SLHC/GEN/620_SLHC25p3_results/tt25_test/tracks_TTbar_PU140_sf1_nz8_L5x2_L10x2.root";  // from Olmo
-    //TString filename = "root://xrootd2.ihepa.ufl.edu//store/user/jiafulow/SLHC/GEN/620_SLHC25p3_results/tt25_test/tracks_TTbar_PU140_sf1_nz8_L5x2_L10x2.root";  // from Olmo
-
     // Open the file
     std::cout << "Opening file..." << std::endl;
 
@@ -19,7 +19,6 @@ void analyzeTracks() {
     std::cout << "Number of events: " << nentries << std::endl;
 
     // Loop over events
-    // There is only one track per event
     for (Long64_t ievt = 0; ievt < nentries; ++ievt) {
         // Retrieve the event
         reader.getEntry(ievt);
@@ -114,4 +113,12 @@ void analyzeTracks() {
 
     }  // end loop over events
 
-}  // end analyze()
+}  // end analyzeTracks()
+
+#ifndef __CINT__
+int main()
+{
+  analyzeTracks();
+  return 0;
+}
+#endif
