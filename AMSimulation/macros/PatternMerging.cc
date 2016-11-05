@@ -73,22 +73,17 @@ void PatternMerging::mergePatterns(TString src, TString out, unsigned deltaN, fl
   // ___________________________________________________________________________
   // Load patterns into local data structure
 
-  if (verbose_) std::cout << "loading patterns..." << std::endl;
+  if (verbose_) std::cout << "Loading patterns..." << std::endl;
 
-  std::map<std::vector<unsigned>, unsigned> patternMap; // map pattern->index
+  if (maxPatterns) npatterns = maxPatterns;
 
-  std::vector<Pattern> patternList; // all patterns
+  std::vector<Pattern> patternList; // save all patterns
+  patternList.reserve(npatterns);
 
   unsigned totalFrequency = 0; // accumulate sum frequency
   float newCoverage = 0.0;     // running coverage
 
-
   // Loop to read all patterns and build vector patternList
-
-  if (maxPatterns) npatterns = maxPatterns;
-
-  patternList.reserve(npatterns);
-
 
   for (unsigned ipatt = 0; ipatt < npatterns; ++ipatt) {
     // Get pattern
@@ -102,8 +97,9 @@ void PatternMerging::mergePatterns(TString src, TString out, unsigned deltaN, fl
     newCoverage = coverage * totalFrequency / statistics;
 
     if (verbose_ && (ipatt%1000000) == 0) {
-      std::cout << std::setw(10) << ipatt << " patterns, coverage: ";
-      std::cout << std::setw(10) << newCoverage;
+      std::cout << std::setw(10) << ipatt << " patterns. ";
+      std::cout << " Current coverage: " << newCoverage;
+      std::cout << " frequency: " << pbreader.pb_frequency;
       std::cout << std::endl;
     }
 
@@ -143,9 +139,6 @@ void PatternMerging::mergePatterns(TString src, TString out, unsigned deltaN, fl
       std::cout << std::endl;
     }
 
-    // create map from pattern to index to patternList
-    patternMap[tempPattern.superstripIds] = tempPattern.index;
-
     // append temp pattern to list
     patternList.push_back(tempPattern);
 
@@ -164,6 +157,16 @@ void PatternMerging::mergePatterns(TString src, TString out, unsigned deltaN, fl
 
   if (!maxPatterns) assert(coverage < targetCoverage || newCoverage >= targetCoverage); // did we reach target coverage?
 
+  // Create map from pattern to index in patternList
+
+  if (verbose_) std::cout << "Setting up patternMap..." << std::endl;
+
+  std::map<std::vector<unsigned>, unsigned> patternMap; // map pattern -> index
+
+  for (const auto& tempPattern : patternList) {
+    patternMap[tempPattern.superstripIds] = tempPattern.index;
+  }
+
 
   // ___________________________________________________________________________
   // Clone and sort patterns by phi
@@ -179,9 +182,11 @@ void PatternMerging::mergePatterns(TString src, TString out, unsigned deltaN, fl
   });
 
   // Set all indices to phi-sorted list in frequency-sorted list
+
   for (unsigned iq = 0; iq < npatterns; ++iq) {   // iq is index in phi-sorted list
     unsigned ip = clonePatternList.at(iq).index;  // ip is index in frequency-sorted list
     patternList.at(ip).index = iq;
+    assert(clonePatternList.at(iq).frequency == patternList.at(ip).frequency);
   }
 
   if (verbose_) std::cout << "Finished sorting" << std::endl;
@@ -223,12 +228,7 @@ void PatternMerging::mergePatterns(TString src, TString out, unsigned deltaN, fl
       std::cout << std::endl;
     }
 
-    if (merged[ip]) { // skip this pattern if already merged
-      if (verbose_ >= 10) {  // print pattern number
-        std::cout << std::endl << "-----" << std::setw(10) << ip << " skipped" << std::endl;
-      }
-      continue;
-    }
+    if (merged[ip]) continue; // skip this pattern if already merged
 
     if (verbose_ >= 10) { // print pattern number
       std::cout << std::endl << "-----" << std::setw(10) << ip << " " << patternList[ip].superstripIds << std::endl;
@@ -242,7 +242,7 @@ void PatternMerging::mergePatterns(TString src, TString out, unsigned deltaN, fl
 
     // find siblings for this pattern patternList[ip] in the search range
 
-    std::vector<Sibling> siblings; // vector of siblings
+    std::vector<Sibling> siblings;
 
     // iq points into phi ordered list clonePatternList[iq]
 
@@ -270,15 +270,16 @@ void PatternMerging::mergePatterns(TString src, TString out, unsigned deltaN, fl
         // construct a sibling
         if (abs(deltass) == 1 || abs(deltass) == magicNumber) {
           Sibling sib;
-          sib.patternInd = ip;
-          sib.siblingInd = clonePatternList[iq].index;
+          //sib.patternInd = ip;
+          //sib.siblingInd = clonePatternList[iq].index;
+          sib.index      = clonePatternList[iq].index;
+          sib.frequency  = clonePatternList[iq].frequency;
           sib.layer      = layer;
           sib.delta      = deltass;
-
           siblings.push_back(sib);
         }
       }
-    }
+    }  // end search range
 
     // fill histogram: number of siblings
     hNSiblings->Fill(siblings.size());
@@ -287,9 +288,10 @@ void PatternMerging::mergePatterns(TString src, TString out, unsigned deltaN, fl
     // Interrogate selectSiblings() to pick patterns to merge
 
     merged[ip] = true; // mark this pattern as merged before selectSiblings() to avoid combining itself
+
     const std::vector<unsigned>& selectedSiblings = selectSiblings(ip, siblings, patternList, merged, patternMap);
 
-    int nm = selectedSiblings.size() + 1;
+    const int nm = selectedSiblings.size() + 1;
     assert(nm == 1 || nm == 2 || nm == 4 || nm == 8);
 
     // fill histogram: number of merged patterns
@@ -331,6 +333,17 @@ void PatternMerging::mergePatterns(TString src, TString out, unsigned deltaN, fl
     }
   }
 
+
+  // ___________________________________________________________________________
+  // Release memory
+
+  {
+    std::vector<Pattern>().swap(patternList);
+    std::vector<Pattern>().swap(clonePatternList);
+    std::map<std::vector<unsigned>, unsigned>().swap(patternMap);
+  }
+
+
   // ___________________________________________________________________________
   // Consistency checks
   // 1. all indices in indFromMerged must have no repetition
@@ -355,6 +368,7 @@ void PatternMerging::mergePatterns(TString src, TString out, unsigned deltaN, fl
       std::cout << allIndices.size() << " different indices out of " << NIndices << " in indFromMerged" << std::endl;
       std::cout << indFromMerged.size() << " merged patterns out of " << npatterns << " (- " << 100*gain << "%)" << std::endl;
     }
+    assert(NIndices == allIndices.size());
   }
 
   // ___________________________________________________________________________
@@ -370,17 +384,17 @@ void PatternMerging::mergePatterns(TString src, TString out, unsigned deltaN, fl
   t1->Write();
 
   TTree * t2 = new TTree("fromMerged", "fromMerged");
-  std::vector<unsigned> indFromMerged_temp;
-  t2->Branch("indFromMerged", &indFromMerged_temp);
-  for (const auto& x : indFromMerged) {
-    indFromMerged_temp = x;
+  std::vector<unsigned> indFromMergedTemp;
+  t2->Branch("indFromMerged", &indFromMergedTemp);
+  for (unsigned i = 0; i < indFromMerged.size(); ++i) {
+    indFromMergedTemp = indFromMerged[i];
     t2->Fill();
   }
   t2->Write();
 
-  pbreader.getTree()->Write();
-  pbreader.getInfoTree()->Write();
-  pbreader.getAttrTree()->Write();
+  pbreader.getTree()->CloneTree()->Write();
+  pbreader.getInfoTree()->CloneTree()->Write();
+  pbreader.getAttrTree()->CloneTree()->Write();
 
   outfile->mkdir("histograms")->cd();
   hNSiblings->Write();
@@ -408,10 +422,16 @@ std::vector<unsigned> PatternMerging::selectSiblings(
   // indices point to patternList
   std::vector<unsigned> selectedSiblings;
 
+  if (siblings.size() == 0) return selectedSiblings;
+
   unsigned maxTotalFrequency = 0, totalFrequency = 0;
 
+  // Declare all the variables
   unsigned patternInd1 = 0, patternInd2 = 0, patternInd3 = 0;
   unsigned freq1 = 0, freq2 = 0, freq3 = 0;
+  unsigned patternIndNew = 0, freqNew = 0;
+  std::map<std::vector<unsigned>, unsigned>::const_iterator found;
+
 
   ///////////////////////////////////////////////////////////////////
   // try merge x8
@@ -423,39 +443,40 @@ std::vector<unsigned> PatternMerging::selectSiblings(
     std::vector<std::vector<unsigned> > newPatternList;
     std::vector<unsigned> newPatternIndList;
 
+    std::vector<unsigned> newPattern0, newPattern1, newPattern2, newPattern3;
+
     for (unsigned is1 = 0; is1+2 < siblings.size(); ++is1) {
-      patternInd1 = siblings[is1].siblingInd;
-      freq1 = patternList[patternInd1].frequency;
+      patternInd1 = siblings[is1].index;
+      freq1 = siblings[is1].frequency;
 
       for (unsigned is2 = is1+1; is2+1 < siblings.size(); ++is2) {
-        patternInd2 = siblings[is2].siblingInd;
-        freq2 = patternList[patternInd2].frequency;
+        patternInd2 = siblings[is2].index;
+        freq2 = siblings[is2].frequency;
 
         for (unsigned is3 = is2+1; is3 < siblings.size(); ++is3) {
-          patternInd3 = siblings[is3].siblingInd;
-          freq3 = patternList[patternInd3].frequency;
+          patternInd3 = siblings[is3].index;
+          freq3 = siblings[is3].frequency;
 
           // for each triplet of siblings, build a vector with 4 combined patterns
           bool goodTriplet = true;
 
           newPatternList.clear();
 
-          std::vector<unsigned> newPattern0;
           newPattern0 = patternList[patternInd].superstripIds;
           newPattern0[siblings[is1].layer] += siblings[is1].delta;
           newPattern0[siblings[is2].layer] += siblings[is2].delta;
           newPattern0[siblings[is3].layer] += siblings[is3].delta;
           newPatternList.push_back(newPattern0);
 
-          std::vector<unsigned> newPattern1 = newPattern0;
+          newPattern1 = newPattern0;
           newPattern1[siblings[is1].layer] -= siblings[is1].delta;
           newPatternList.push_back(newPattern1);
 
-          std::vector<unsigned> newPattern2 = newPattern0;
+          newPattern2 = newPattern0;
           newPattern2[siblings[is2].layer] -= siblings[is2].delta;
           newPatternList.push_back(newPattern2);
 
-          std::vector<unsigned> newPattern3 = newPattern0;
+          newPattern3 = newPattern0;
           newPattern3[siblings[is3].layer] -= siblings[is3].delta;
           newPatternList.push_back(newPattern3);
 
@@ -473,19 +494,19 @@ std::vector<unsigned> PatternMerging::selectSiblings(
           for (unsigned iNew = 0; iNew < 4; ++iNew) {
 
             // find combined pattern in patternMap
-            auto found = patternMap.find(newPatternList[iNew]);
+            found = patternMap.find(newPatternList[iNew]);
             if (found == patternMap.end()) { // new pattern does not exist
               goodTriplet = false;
               break;
             }
 
-            unsigned patternIndNew = found->second;
+            patternIndNew = found->second;
             if (merged[patternIndNew]) { // new pattern is already merged
               goodTriplet = false;
               break;
             }
 
-            unsigned freqNew = patternList[patternIndNew].frequency;
+            freqNew = patternList[patternIndNew].frequency;
             totalFrequency += freqNew;
             newPatternIndList.push_back(patternIndNew);
           } // end loop on combined patterns
@@ -519,42 +540,46 @@ std::vector<unsigned> PatternMerging::selectSiblings(
 
   maxTotalFrequency = 0;
 
-  for (unsigned is1 = 0; is1+1 < siblings.size(); ++is1) {
-    patternInd1 = siblings[is1].siblingInd;
-    freq1 = patternList[patternInd1].frequency;
+  if (siblings.size() >= 2) {
+    std::vector<unsigned> newPattern;
 
-    for (unsigned is2 = is1+1; is2 < siblings.size(); ++is2) {
-      patternInd2 = siblings[is2].siblingInd;
-      freq2 = patternList[patternInd2].frequency;
+    for (unsigned is1 = 0; is1+1 < siblings.size(); ++is1) {
+      patternInd1 = siblings[is1].index;
+      freq1 = siblings[is1].frequency;
 
-      // combine two siblings and make a new combined pattern
-      std::vector<unsigned> newPattern = patternList[patternInd].superstripIds;
-      newPattern[siblings[is1].layer] += siblings[is1].delta;
-      newPattern[siblings[is2].layer] += siblings[is2].delta;
+      for (unsigned is2 = is1+1; is2 < siblings.size(); ++is2) {
+        patternInd2 = siblings[is2].index;
+        freq2 = siblings[is2].frequency;
 
-      // find combined pattern in patternMap
-      auto found = patternMap.find(newPattern);
-      if (found == patternMap.end()) { // new pattern does not exist
-        continue;
-      }
+        // combine two siblings and make a new combined pattern
+        newPattern = patternList[patternInd].superstripIds;
+        newPattern[siblings[is1].layer] += siblings[is1].delta;
+        newPattern[siblings[is2].layer] += siblings[is2].delta;
 
-      unsigned patternIndNew = found->second;
-      if (merged[patternIndNew]) { // new pattern is already merged
-        continue;
-      }
+        // find combined pattern in patternMap
+        found = patternMap.find(newPattern);
+        if (found == patternMap.end()) { // new pattern does not exist
+          continue;
+        }
 
-      unsigned freqNew = patternList[patternIndNew].frequency;
-      totalFrequency = freq1 + freq2 + freqNew;
+        patternIndNew = found->second;
+        if (merged[patternIndNew]) { // new pattern is already merged
+          continue;
+        }
 
-      if (totalFrequency > maxTotalFrequency) {
-        maxTotalFrequency = totalFrequency;
-        selectedSiblings.clear();
-        selectedSiblings.push_back(patternInd1);
-        selectedSiblings.push_back(patternInd2);
-        selectedSiblings.push_back(patternIndNew);
-      }
-    } // end loop on is2
-  } // end loop on is1
+        freqNew = patternList[patternIndNew].frequency;
+        totalFrequency = freq1 + freq2 + freqNew;
+
+        if (totalFrequency > maxTotalFrequency) {
+          maxTotalFrequency = totalFrequency;
+          selectedSiblings.clear();
+          selectedSiblings.push_back(patternInd1);
+          selectedSiblings.push_back(patternInd2);
+          selectedSiblings.push_back(patternIndNew);
+        }
+      } // end loop on is2
+    } // end loop on is1
+  } // end if having 2 or more siblings
 
   if (selectedSiblings.size() > 0) return selectedSiblings;
 
@@ -568,8 +593,8 @@ std::vector<unsigned> PatternMerging::selectSiblings(
   maxTotalFrequency = 0;
 
   for (unsigned is1 = 0; is1 < siblings.size(); ++is1) {
-    patternInd1 = siblings[is1].siblingInd;
-    freq1 = patternList[patternInd1].frequency;
+    patternInd1 = siblings[is1].index;
+    freq1 = siblings[is1].frequency;
     totalFrequency = freq1;
 
     if (totalFrequency > maxTotalFrequency) {

@@ -25,8 +25,10 @@ public:
 
   class Sibling {
   public:
-    unsigned patternInd;
-    unsigned siblingInd;
+    //unsigned patternInd;
+    //unsigned siblingInd;
+    unsigned index;  // siblingInd
+    unsigned frequency;
     int layer;
     int delta;
   };  // end class Sibling
