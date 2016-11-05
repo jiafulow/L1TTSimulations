@@ -48,8 +48,8 @@ public:
     unsigned                       pb_count;
     unsigned                       pb_tower;
     std::string *                  pb_superstrip;
-    unsigned                       pb_superstrip_nx;
-    unsigned                       pb_superstrip_nz;
+    //unsigned                       pb_superstrip_nx;
+    //unsigned                       pb_superstrip_nz;
 
     // Pattern bank
     frequency_type                 pb_frequency;
@@ -86,8 +86,8 @@ PatternBankReader::PatternBankReader(int verbose) :
     pb_count          (0),
     pb_tower          (0),
     pb_superstrip     (0),
-    pb_superstrip_nx  (0),
-    pb_superstrip_nz  (0),
+    //pb_superstrip_nx  (0),
+    //pb_superstrip_nz  (0),
     //
     pb_frequency      (0),
     pb_superstripIds  (0),
@@ -136,8 +136,8 @@ void PatternBankReader::init(TString src) {
     ttree2_->SetBranchAddress("count"         , &(pb_count));
     ttree2_->SetBranchAddress("tower"         , &(pb_tower));
     ttree2_->SetBranchAddress("superstrip"    , &(pb_superstrip));
-    ttree2_->SetBranchAddress("superstrip_nx" , &(pb_superstrip_nx));
-    ttree2_->SetBranchAddress("superstrip_nz" , &(pb_superstrip_nz));
+    //ttree2_->SetBranchAddress("superstrip_nx" , &(pb_superstrip_nx));
+    //ttree2_->SetBranchAddress("superstrip_nz" , &(pb_superstrip_nz));
 
     ttree1_ = (TTree*) tfile_->Get("patternBank");
     assert(ttree1_ != 0);

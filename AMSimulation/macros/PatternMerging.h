@@ -50,7 +50,7 @@ public:
     //float cotTheta_mean;
     //float cotTheta_sigma;
     float phi_mean;
-    float phi_sigma;
+    //float phi_sigma;
     //float z0_mean;
     //float z0_sigma;
 
@@ -84,12 +84,14 @@ public:
 
   void mergePatterns(TString src, TString out, unsigned deltaN=36000, float targetCoverage=0.95) const;
 
-  std::vector<unsigned> selectSiblings(
+  void selectSiblings(
       unsigned patternInd,
       const std::vector<Sibling>& siblings,
       const std::vector<Pattern>& patternList,
       const std::vector<bool>& merged,
-      const std::map<std::vector<unsigned>, unsigned>& patternMap
+      const std::map<std::vector<unsigned>, unsigned>& patternMap,
+      std::vector<unsigned>& selectedSiblings,
+      unsigned& selectedFrequency
   ) const;
 
 private:

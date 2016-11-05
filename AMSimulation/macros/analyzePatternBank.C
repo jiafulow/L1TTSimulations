@@ -23,7 +23,8 @@ void analyzePatternBank() {
 
     float    coverage    = reader.pb_coverage;
     unsigned count       = reader.pb_count;
-    unsigned magicNumber = reader.pb_superstrip_nx;
+    //unsigned magicNumber = reader.pb_superstrip_nx;
+    unsigned magicNumber = 0;
 
     std::cout << "Bank coverage: " << coverage
               << " count: "        << count

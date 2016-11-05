@@ -96,10 +96,10 @@ void PatternMerging::mergePatterns(TString src, TString out, unsigned deltaN, fl
     totalFrequency += pbreader.pb_frequency;
     newCoverage = coverage * totalFrequency / statistics;
 
-    if (verbose_ && (ipatt%1000000) == 0) {
-      std::cout << std::setw(10) << ipatt << " patterns. ";
-      std::cout << " Current coverage: " << newCoverage;
-      std::cout << " frequency: " << pbreader.pb_frequency;
+    if (verbose_ && (ipatt%200000) == 0) {
+      std::cout << std::setw(10) << ipatt << " patterns ";
+      std::cout << std::setw(6) << pbreader.pb_frequency << " freq ";
+      std::cout << std::setw(15) << newCoverage << " cov ";
       std::cout << std::endl;
     }
 
@@ -122,7 +122,7 @@ void PatternMerging::mergePatterns(TString src, TString out, unsigned deltaN, fl
     //tempPattern.cotTheta_mean  = pbreader.pb_cotTheta_mean;
     //tempPattern.cotTheta_sigma = pbreader.pb_cotTheta_sigma;
     tempPattern.phi_mean       = pbreader.pb_phi_mean;
-    tempPattern.phi_sigma      = pbreader.pb_phi_sigma;
+    //tempPattern.phi_sigma      = pbreader.pb_phi_sigma;
     //tempPattern.z0_mean        = pbreader.pb_z0_mean;
     //tempPattern.z0_sigma       = pbreader.pb_z0_sigma;
     tempPattern.index          = ipatt; // index in original frequency-sorted list
@@ -216,6 +216,10 @@ void PatternMerging::mergePatterns(TString src, TString out, unsigned deltaN, fl
   unsigned nTrials = maxTrials;
   if (maxTrials == 0) nTrials = npatterns; // if maxTrials = 0, process all patterns in bank
 
+  totalFrequency = 0; // accumulate sum frequency
+  newCoverage = 0.0;  // running coverage
+  targetCoverage = std::fmod(targetCoverage, 1.0+1e-9);  // get patterns until coverage >= targetCoverage
+
   std::cout << "Begin merging..." << std::endl;
 
   for (unsigned iTrial = 0; iTrial < nTrials; ++iTrial) {
@@ -224,7 +228,9 @@ void PatternMerging::mergePatterns(TString src, TString out, unsigned deltaN, fl
     // print some information at fixed intervals (nInfo)
     if (verbose_ && (iTrial%nInfo) == 0) {
       std::cout << std::setw(10) << iTrial << " patterns ";
-      std::cout << std::setw(10) << indFromMerged.size() << " merged    ";
+      //std::cout << std::setw(10) << indFromMerged.size() << " merged    ";
+      std::cout << std::setw(10) << indFromMerged.size() << " merged  ";
+      std::cout << std::setw(15) << newCoverage << " cov ";
       std::cout << std::endl;
     }
 
@@ -289,13 +295,25 @@ void PatternMerging::mergePatterns(TString src, TString out, unsigned deltaN, fl
 
     merged[ip] = true; // mark this pattern as merged before selectSiblings() to avoid combining itself
 
-    const std::vector<unsigned>& selectedSiblings = selectSiblings(ip, siblings, patternList, merged, patternMap);
+    std::vector<unsigned> selectedSiblings;  // list of selected sibling pattern indices
+    unsigned selectedFrequency = 0;
+
+    selectSiblings(ip, siblings, patternList, merged, patternMap, selectedSiblings, selectedFrequency);
 
     const int nm = selectedSiblings.size() + 1;
     assert(nm == 1 || nm == 2 || nm == 4 || nm == 8);
 
     // fill histogram: number of merged patterns
     hNMerged->Fill(nm);
+
+    // Accumulate frequency
+    totalFrequency += patternList[ip].frequency;
+    totalFrequency += selectedFrequency;
+    newCoverage = coverage * totalFrequency / statistics;
+
+    // truncate at target coverage
+    if (newCoverage >= targetCoverage) break;
+
 
     // write index of new indFromMerged element for original pattern
     indToMerged[ip] = indFromMerged.size();
@@ -315,6 +333,15 @@ void PatternMerging::mergePatterns(TString src, TString out, unsigned deltaN, fl
     indFromMerged.push_back(indFromMergedTemp);
   }  // end loop on patterns
 
+  unsigned nmpatterns = indFromMerged.size();
+
+
+  if (verbose_) {
+    std::cout << "Coverage: " << newCoverage;
+    std::cout << " with " <<  nmpatterns << " merged patterns. ";
+    std::cout << " Frequency sum: " << totalFrequency;
+    std::cout << std::endl;
+  }
 
   if (verbose_ >= 10) {
      // Dump part of merged structure vectors for diagnostics
@@ -364,10 +391,11 @@ void PatternMerging::mergePatterns(TString src, TString out, unsigned deltaN, fl
 
     if (verbose_) {
       // Write final summary
-      double gain = (double)(npatterns - indFromMerged.size())/npatterns;
+      double gain = (double)(npatterns - nmpatterns) / npatterns;
       std::cout << allIndices.size() << " different indices out of " << NIndices << " in indFromMerged" << std::endl;
-      std::cout << indFromMerged.size() << " merged patterns out of " << npatterns << " (- " << 100*gain << "%)" << std::endl;
+      std::cout << nmpatterns << " merged patterns out of " << npatterns << " (- " << 100*gain << "%)" << std::endl;
     }
+    assert(npatterns >= nmpatterns);
     assert(NIndices == allIndices.size());
   }
 
@@ -386,8 +414,8 @@ void PatternMerging::mergePatterns(TString src, TString out, unsigned deltaN, fl
   TTree * t2 = new TTree("fromMerged", "fromMerged");
   std::vector<unsigned> indFromMergedTemp;
   t2->Branch("indFromMerged", &indFromMergedTemp);
-  for (unsigned i = 0; i < indFromMerged.size(); ++i) {
-    indFromMergedTemp = indFromMerged[i];
+  for (const auto& x : indFromMerged) {
+    indFromMergedTemp = x;
     t2->Fill();
   }
   t2->Write();
@@ -403,6 +431,7 @@ void PatternMerging::mergePatterns(TString src, TString out, unsigned deltaN, fl
   hDeltaSS->Write();
   hDeltaN->Write();
   hDeltaPhi->Write();
+
   outfile->Close();
 
   if (verbose_) std::cout << "Wrote " << out << std::endl;
@@ -411,18 +440,21 @@ void PatternMerging::mergePatterns(TString src, TString out, unsigned deltaN, fl
 }
 
 // _____________________________________________________________________________
-std::vector<unsigned> PatternMerging::selectSiblings(
+void PatternMerging::selectSiblings(
     unsigned patternInd,
     const std::vector<Sibling>& siblings,
     const std::vector<Pattern>& patternList,
     const std::vector<bool>& merged,
-    const std::map<std::vector<unsigned>, unsigned>& patternMap
+    const std::map<std::vector<unsigned>, unsigned>& patternMap,
+    std::vector<unsigned>& selectedSiblings,
+    unsigned& selectedFrequency
 ) const {
   // list of selected siblings to be returned
   // indices point to patternList
-  std::vector<unsigned> selectedSiblings;
+  selectedSiblings.clear();
+  selectedFrequency = 0;
 
-  if (siblings.size() == 0) return selectedSiblings;
+  if (siblings.size() == 0) return;
 
   unsigned maxTotalFrequency = 0, totalFrequency = 0;
 
@@ -515,6 +547,7 @@ std::vector<unsigned> PatternMerging::selectSiblings(
           if (goodTriplet && totalFrequency > maxTotalFrequency) {
             assert(newPatternIndList.size() == 4);
             maxTotalFrequency = totalFrequency;
+            selectedFrequency = totalFrequency;
             selectedSiblings.clear();
             selectedSiblings.push_back(patternInd1);
             selectedSiblings.push_back(patternInd2);
@@ -529,7 +562,7 @@ std::vector<unsigned> PatternMerging::selectSiblings(
     } // end loop on is1
   } // end if having 3 or more siblings
 
-  if (selectedSiblings.size() > 0) return selectedSiblings;
+  if (selectedSiblings.size() > 0) return;
 
 
   ///////////////////////////////////////////////////////////////////
@@ -572,6 +605,7 @@ std::vector<unsigned> PatternMerging::selectSiblings(
 
         if (totalFrequency > maxTotalFrequency) {
           maxTotalFrequency = totalFrequency;
+          selectedFrequency = totalFrequency;
           selectedSiblings.clear();
           selectedSiblings.push_back(patternInd1);
           selectedSiblings.push_back(patternInd2);
@@ -581,7 +615,7 @@ std::vector<unsigned> PatternMerging::selectSiblings(
     } // end loop on is1
   } // end if having 2 or more siblings
 
-  if (selectedSiblings.size() > 0) return selectedSiblings;
+  if (selectedSiblings.size() > 0) return;
 
 
   ///////////////////////////////////////////////////////////////////
@@ -599,10 +633,11 @@ std::vector<unsigned> PatternMerging::selectSiblings(
 
     if (totalFrequency > maxTotalFrequency) {
       maxTotalFrequency = totalFrequency;
+      selectedFrequency = totalFrequency;
       selectedSiblings.clear();
       selectedSiblings.push_back(patternInd1);
     }
   } // end loop on is1
 
-  return selectedSiblings;
+  return;
 }
