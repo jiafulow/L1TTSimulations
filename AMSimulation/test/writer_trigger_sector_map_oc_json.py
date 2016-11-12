@@ -259,6 +259,7 @@ def write_trigger_sector_map():
 
   with open("../data/trigger_sector_map_oc.csv", "w") as f:
     writeme = ["eta_idx, phi_idx, module_list"] + writeme
+    writeme[-1] += "\n"  # add EOL
     f.write("\n".join(writeme))
   return
 
@@ -270,6 +271,10 @@ def write_trigger_sector_boundaries():
   for tt in xrange(48):
     sorted_iteritems = sorted(trigger_towers[tt].layers.iteritems(), key=lambda x: x[1].lay)
     for lay, trigger_tower_layer in sorted_iteritems:
+      # Special attention to phi boundaries
+      if trigger_tower_layer.max_phi < trigger_tower_layer.min_phi:
+        trigger_tower_layer.max_phi += 2*pi
+
       tt_boundaries = [0] * 4
       if 5 <= lay <= 10:  # barrel
         tt_boundaries[0] = trigger_tower_layer.min_phi
@@ -311,17 +316,17 @@ def write_json_files():
 
   with open("../data/trigger_sector_boundaries_oc.csv", "r") as f:
     for line in f:
-        if not line[0].isdigit():
-            continue
-        values = line.split(",")
-        assert(len(values) == 6)
+      if not line[0].isdigit():
+        continue
+      values = line.split(",")
+      assert(len(values) == 6)
 
-        # Convert to int or float
-        values = [float(x) if "." in x else int(x) for x in values]
+      # Convert to int or float
+      values = [float(x) if "." in x else int(x) for x in values]
 
-        key = values[0]*100 + values[1]
-        values = values[2:]
-        mymap[key] = values
+      key = values[0]*100 + values[1]
+      values = values[2:]
+      mymap[key] = values
 
   json.dump(mymap, open("../data/trigger_sector_boundaries_oc.json", "w"), sort_keys=True)
   return
