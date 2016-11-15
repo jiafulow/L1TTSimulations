@@ -67,6 +67,7 @@ public:
     std::vector<unsigned> *                             vr_tower;         // road tower
     std::vector<unsigned> *                             vr_nstubs;        // road total number of stubs
     std::vector<float> *                                vr_patternInvPt;  // road pattern q/pT [1/GeV]
+    std::vector<unsigned> *                             vr_patternFreq;   // road pattern frequency
     std::vector<std::vector<unsigned> > *               vr_superstripIds; // road superstrip ids
     std::vector<std::vector<std::vector<unsigned> > > * vr_stubRefs;      // road stub ids
 
@@ -152,6 +153,7 @@ TTTrackReader::TTTrackReader(int verbose) :
     vr_tower            (0),
     vr_nstubs           (0),
     vr_patternInvPt     (0),
+    vr_patternFreq      (0),
     vr_superstripIds    (0),
     vr_stubRefs         (0),
     //
@@ -259,6 +261,7 @@ void TTTrackReader::init(TString src) {
     tchain_->SetBranchAddress(prefix + "tower"         + suffix, &(vr_tower));
     tchain_->SetBranchAddress(prefix + "nstubs"        + suffix, &(vr_nstubs));
     tchain_->SetBranchAddress(prefix + "patternInvPt"  + suffix, &(vr_patternInvPt));
+    tchain_->SetBranchAddress(prefix + "patternFreq"   + suffix, &(vr_patternFreq));
     tchain_->SetBranchAddress(prefix + "superstripIds" + suffix, &(vr_superstripIds));
     tchain_->SetBranchAddress(prefix + "stubRefs"      + suffix, &(vr_stubRefs));
     //

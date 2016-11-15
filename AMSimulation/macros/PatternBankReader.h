@@ -23,15 +23,25 @@ public:
     Int_t getPatternInfo(Long64_t entry=0) { return ttree2_->GetEntry(0);     }  // only 1 entry
     Int_t getPatternAttr(Long64_t entry)   { return ttree3_->GetEntry(entry); }
 
+    Int_t getEntry_toMerged  (Long64_t entry=0) { return ttree4_->GetEntry(0);     }  // only 1 entry
+    Int_t getEntry_fromMerged(Long64_t entry)   { return ttree5_->GetEntry(entry); }
+
     Long64_t getEntries() const { return ttree1_->GetEntries(); }
 
     TTree * getTree()     { return ttree1_; }
     TTree * getInfoTree() { return ttree2_; }
     TTree * getAttrTree() { return ttree3_; }
 
+    TTree * getTree_toMerged()   { return ttree4_; }
+    TTree * getTree_fromMerged() { return ttree5_; }
+
     // Typedefs
     typedef uint32_t superstrip_type;
     typedef uint16_t frequency_type;
+
+    // Pattern merging indices
+    std::vector<unsigned> *        pb_indFromMerged;
+    std::vector<unsigned> *        pb_indToMerged;
 
     // Pattern attributes
     float                          pb_invPt_mean;
@@ -60,6 +70,8 @@ protected:
     TTree* ttree1_;  // for pattern bank
     TTree* ttree2_;  // for pattern bank statistics
     TTree* ttree3_;  // for pattern attributes
+    TTree* ttree4_;  // for merged pattern bank: toMerged
+    TTree* ttree5_;  // for merged pattern bank: fromMerged
     const int verbose_;
 };
 #endif  // _PATTERNBANKREADER_H_
@@ -73,6 +85,9 @@ protected:
 #include <stdexcept>
 
 PatternBankReader::PatternBankReader(int verbose) :
+    pb_indFromMerged  (0),
+    pb_indToMerged    (0),
+    //
     pb_invPt_mean     (0.),
     pb_invPt_sigma    (0.),
     pb_cotTheta_mean  (0.),
@@ -95,6 +110,8 @@ PatternBankReader::PatternBankReader(int verbose) :
     verbose_(verbose) {}
 
 PatternBankReader::~PatternBankReader() {
+    if (ttree5_) delete ttree5_;
+    if (ttree4_) delete ttree4_;
     if (ttree3_) delete ttree3_;
     if (ttree2_) delete ttree2_;
     if (ttree1_) delete ttree1_;
@@ -115,6 +132,20 @@ void PatternBankReader::init(TString src) {
     } else {
         TString msg = "Failed to read " + src;
         throw std::invalid_argument(msg.Data());
+    }
+
+    ttree5_ = (TTree*) tfile_->Get("fromMerged");
+    if (ttree5_ != 0) {
+        ttree5_->SetBranchAddress("indFromMerged", &(pb_indFromMerged));
+    } else {
+        //std::cout << "Cannot find TTree \"fromMerged\"" << std::endl;
+    }
+
+    ttree4_ = (TTree*) tfile_->Get("toMerged");
+    if (ttree4_ != 0) {
+        ttree4_->SetBranchAddress("indToMerged", &(pb_indToMerged));
+    } else {
+        //std::cout << "Cannot find TTree \"toMerged\"" << std::endl;
     }
 
     ttree3_ = (TTree*) tfile_->Get("patternAttributes");

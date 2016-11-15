@@ -23,21 +23,19 @@ public:
   // ___________________________________________________________________________
   // Sibling
 
-  class Sibling {
-  public:
+  struct Sibling {
     //unsigned patternInd;
     //unsigned siblingInd;
     unsigned index;  // siblingInd
     unsigned frequency;
     int layer;
     int delta;
-  };  // end class Sibling
+  };
 
   // ___________________________________________________________________________
   // Pattern
 
-  class Pattern {
-  public:
+  struct Pattern {
     // pattern proper (vector of superstrips)
     std::vector<unsigned> superstripIds;
 
@@ -74,7 +72,7 @@ public:
       return (nDiff == 1); // one and only one layer
     }
 
-  };  // end class Pattern
+  };
 
   // ___________________________________________________________________________
   // PatternMerging
