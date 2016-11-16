@@ -6,8 +6,6 @@
 
 #include "TString.h"
 
-class PatternBankReader;
-
 
 // Codes originally written by Roberto Rossin (Florida, now Padova)
 // Modified for inclusion into AMSimulation
@@ -59,14 +57,11 @@ public:
     // index in merged pattern bank
     unsigned indToMerged;
 
+    // pattern proper big-league (vector of vector of superstrips)
+    std::vector<std::vector<unsigned> > superstripIdsBigLeague;
+
     // sibling indices in original frequency-sorted list
     std::vector<unsigned> indFromMerged;
-
-    // merged attributes
-    float invPtFromMerged;
-    unsigned freqFromMerged;
-
-    std::vector<std::vector<unsigned> > superstripIdsBigLeague;
   };
 
   // ___________________________________________________________________________
@@ -75,17 +70,18 @@ public:
   RoadMerging();
   ~RoadMerging();
 
-  void process(TString src, TString bank) const;  //TODO: factor out this guy
+  void process(TString src, TString out, TString bank) const;  //TODO: factor out this guy
 
   void mergeRoads(
       const std::vector<Pattern>& patterns,
-      const std::vector<unsigned>& indToMerged,
-      const std::vector<std::vector<unsigned> >& indFromMerged,
+      const std::vector<Pattern>& merged_patterns,
       const std::vector<TTRoad>& roads,
       std::vector<TTRoad>& merged_roads
   ) const;
 
 private:
+  static const int nLayers = 6;
+
   int verbose_;
 };
 

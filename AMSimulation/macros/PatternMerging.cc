@@ -58,7 +58,9 @@ void PatternMerging::mergePatterns(TString src, TString out, unsigned deltaN, fl
   float    coverage    = pbreader.pb_coverage;
   unsigned tower       = pbreader.pb_tower;
   //int      magicNumber = pbreader.pb_superstrip_nx;
-  int      magicNumber = 243;  //FIXME
+  //int      magicNumber = 243;  // good only for sf1_xxxx_L0x2 and L5x2
+  //int      magicNumber = 226;  // good only for Olmo new tt25 definition and sf1_xxxx_L0x2 and L5x2
+  int      magicNumber = 512;  // good only for Jia Fu new version
 
   if (verbose_) {
     std::cout << "Coverage: " << coverage;
