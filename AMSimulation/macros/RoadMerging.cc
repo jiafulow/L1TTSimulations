@@ -23,7 +23,7 @@ RoadMerging::RoadMerging() : verbose_(1) {}
 RoadMerging::~RoadMerging() {}
 
 // _____________________________________________________________________________
-void RoadMerging::process(TString src, TString out, TString bank) const {
+void RoadMerging::process(TString bank, TString src, TString out) const {
 
   float targetCoverage = 0.95;
 
@@ -53,8 +53,7 @@ void RoadMerging::process(TString src, TString out, TString bank) const {
   reader.init(src);
 
   // Get number of events
-  //unsigned nentries = TChain::kBigNumber;
-  unsigned nentries = 10;
+  unsigned nentries = 4294967295;  // std::numeric_limits<unsigned>::max()
 
 
   // ___________________________________________________________________________
@@ -72,9 +71,9 @@ void RoadMerging::process(TString src, TString out, TString bank) const {
   std::vector<std::vector<unsigned> > vr_superstripIds;  // [road i][layer j]
   std::vector<std::vector<std::vector<unsigned> > > vr_stubRefs;  // [road i][layer j][stub k]
 
-  std::vector<std::vector<std::vector<unsigned> > > vr_superstripIdsBigLeague;  // [road i][layer j][superstrip k]
+  std::vector<std::vector<std::vector<unsigned> > > vr_superstripIdsUnited;  // [road i][layer j][superstrip k]
 
-  writer.getTree()->Branch("AMTTRoads_superstripIdsBigLeague", &vr_superstripIdsBigLeague);
+  writer.getTree()->Branch("AMTTRoads_superstripIdsUnited", &vr_superstripIdsUnited);  // extra branch
 
 
   // ___________________________________________________________________________
@@ -137,7 +136,7 @@ void RoadMerging::process(TString src, TString out, TString bank) const {
     tempPattern.invPt_mean     = 0.;
     tempPattern.index          = jpatt;  // index in merged pattern bank
     tempPattern.indToMerged    = patterns.at(indFromMergedTemp.front()).indToMerged;  // index in merged pattern bank
-    tempPattern.superstripIdsBigLeague = std::vector<std::vector<unsigned> >(6);
+    tempPattern.superstripIdsUnited = std::vector<std::vector<unsigned> >(6);
     tempPattern.indFromMerged  = indFromMergedTemp;
 
     assert(tempPattern.index == tempPattern.indToMerged);  // a ha!
@@ -158,7 +157,7 @@ void RoadMerging::process(TString src, TString out, TString bank) const {
 
       // Make a union of superstripIds
       const auto& ssids   = patterns.at(kpatt).superstripIds;
-      auto&&      m_ssids = tempPattern.superstripIdsBigLeague;
+      auto&&      m_ssids = tempPattern.superstripIdsUnited;
 
       assert(m_ssids.size() == ssids.size());
       for (unsigned ilayer = 0; ilayer < ssids.size(); ++ilayer) {
@@ -178,6 +177,7 @@ void RoadMerging::process(TString src, TString out, TString bank) const {
 
   if (verbose_)  std::cout << "Sorting merged pattern bank by frequency ..." << std::endl;
 
+  // Sort merged_patterns by frequency
   std::stable_sort(merged_patterns.begin(), merged_patterns.end(), [](const Pattern& lhs, const Pattern& rhs) {
     return (lhs.frequency >= rhs.frequency);  // higher frequency first
   });
@@ -216,7 +216,7 @@ void RoadMerging::process(TString src, TString out, TString bank) const {
 
   assert(totalFrequency == statistics);
 
-  merged_patterns.resize(stoppingPatternInd);
+  //merged_patterns.resize(stoppingPatternInd);
 
 
   // ___________________________________________________________________________
@@ -231,77 +231,82 @@ void RoadMerging::process(TString src, TString out, TString bank) const {
 
     const unsigned nroads = reader.vr_patternRef->size();
 
-    if (verbose_)  std::cout << ".. Processing event: " << ievt << " nroads: " << nroads << std::endl;
+    if (verbose_ && ievt%100 == 0)  std::cout << ".. Processing event: " << ievt << " nroads: " << nroads << std::endl;
 
     roads.clear();
     merged_roads.clear();
 
     for (unsigned iroad=0; iroad<nroads; ++iroad) {
 
-      if (verbose_)  std::cout << ".... Processing road: " << iroad << std::endl;
+      //if (verbose_)  std::cout << ".... Processing road: " << iroad << std::endl;
 
       // Reconstruct the road
       TTRoad aroad;
-      aroad.patternRef             = reader.vr_patternRef->at(iroad);
-      aroad.tower                  = reader.vr_tower->at(iroad);
-      aroad.nstubs                 = reader.vr_nstubs->at(iroad);
-      aroad.patternInvPt           = reader.vr_patternInvPt->at(iroad);
-      aroad.patternFreq            = reader.vr_patternFreq->at(iroad);
-      aroad.superstripIds          = reader.vr_superstripIds->at(iroad);
-      aroad.stubRefs               = reader.vr_stubRefs->at(iroad);
-      aroad.superstripIdsBigLeague = std::vector<std::vector<unsigned> >();
+      aroad.patternRef          = reader.vr_patternRef->at(iroad);
+      aroad.tower               = reader.vr_tower->at(iroad);
+      aroad.nstubs              = reader.vr_nstubs->at(iroad);
+      aroad.patternInvPt        = reader.vr_patternInvPt->at(iroad);
+      aroad.patternFreq         = reader.vr_patternFreq->at(iroad);
+      aroad.superstripIds       = reader.vr_superstripIds->at(iroad);
+      aroad.stubRefs            = reader.vr_stubRefs->at(iroad);
+      aroad.superstripIdsUnited = std::vector<std::vector<unsigned> >();
       roads.push_back(aroad);
     }
 
     assert(roads.size() == nroads);
 
-    std::stable_sort(roads.begin(), roads.end(), [](const TTRoad& lhs, const TTRoad& rhs) {
-      return (std::abs(lhs.patternInvPt) < std::abs(rhs.patternInvPt));  // higher pT first
-    });
+    // Sort roads by pT
+    //std::stable_sort(roads.begin(), roads.end(), [](const TTRoad& lhs, const TTRoad& rhs) {
+    //  return (std::abs(lhs.patternInvPt) < std::abs(rhs.patternInvPt));  // higher pT first
+    //});
 
+    // The real work is done here
     mergeRoads(patterns, merged_patterns, roads, merged_roads);
 
+    // Sort merged_roads by pT
     std::stable_sort(merged_roads.begin(), merged_roads.end(), [](const TTRoad& lhs, const TTRoad& rhs) {
       return (std::abs(lhs.patternInvPt) < std::abs(rhs.patternInvPt));  // higher pT first
     });
 
-    std::cout << ".. Num of unmerged roads: " << roads.size() << " least invPt: " << (roads.size() ? roads.front().patternInvPt : std::nan("")) << std::endl;
-    std::cout << ".. Num of merged roads: " << merged_roads.size() << " least invPt: " << (merged_roads.size() ? merged_roads.front().patternInvPt : std::nan("")) << std::endl;
+    //if (verbose_)  std::cout << ".. Num of unmerged roads: " << roads.size() << " least invPt: " << (roads.size() ? roads.front().patternInvPt : std::nan("")) << std::endl;
+    //if (verbose_)  std::cout << ".. Num of merged roads: " << merged_roads.size() << " least invPt: " << (merged_roads.size() ? merged_roads.front().patternInvPt : std::nan("")) << std::endl;
 
 
-    unsigned nmroads = merged_roads.size();
+    const unsigned nmroads = merged_roads.size();
 
     // Split TTRoad class into branches
-    vr_patternRef            .clear();
-    vr_tower                 .clear();
-    vr_nstubs                .clear();
-    vr_patternInvPt          .clear();
-    vr_patternFreq           .clear();
-    vr_superstripIds         .clear();
-    vr_stubRefs              .clear();
-    vr_superstripIdsBigLeague.clear();
+    vr_patternRef         .clear();
+    vr_tower              .clear();
+    vr_nstubs             .clear();
+    vr_patternInvPt       .clear();
+    vr_patternFreq        .clear();
+    vr_superstripIds      .clear();
+    vr_stubRefs           .clear();
+    vr_superstripIdsUnited.clear();
 
     for (unsigned jroad=0; jroad<nmroads; ++jroad) {
-      const TTRoad& amroad = roads.at(jroad);
-      vr_patternRef            .emplace_back(amroad.patternRef            );
-      vr_tower                 .emplace_back(amroad.tower                 );
-      vr_nstubs                .emplace_back(amroad.nstubs                );
-      vr_patternInvPt          .emplace_back(amroad.patternInvPt          );
-      vr_patternFreq           .emplace_back(amroad.patternFreq           );
-      vr_superstripIds         .emplace_back(amroad.superstripIds         );
-      vr_stubRefs              .emplace_back(amroad.stubRefs              );
-      vr_superstripIdsBigLeague.emplace_back(amroad.superstripIdsBigLeague);
+      const TTRoad& amroad = merged_roads.at(jroad);
+      assert(amroad.superstripIdsUnited.size() > 0);
+
+      vr_patternRef         .emplace_back(amroad.patternRef         );
+      vr_tower              .emplace_back(amroad.tower              );
+      vr_nstubs             .emplace_back(amroad.nstubs             );
+      vr_patternInvPt       .emplace_back(amroad.patternInvPt       );
+      vr_patternFreq        .emplace_back(amroad.patternFreq        );
+      vr_superstripIds      .emplace_back(amroad.superstripIds      );
+      vr_stubRefs           .emplace_back(amroad.stubRefs           );
+      vr_superstripIdsUnited.emplace_back(amroad.superstripIdsUnited);
     }
 
     // Write out
-    *(reader.vr_patternRef            ) = vr_patternRef            ;
-    *(reader.vr_tower                 ) = vr_tower                 ;
-    *(reader.vr_nstubs                ) = vr_nstubs                ;
-    *(reader.vr_patternInvPt          ) = vr_patternInvPt          ;
-    *(reader.vr_patternFreq           ) = vr_patternFreq           ;
-    *(reader.vr_superstripIds         ) = vr_superstripIds         ;
-    *(reader.vr_stubRefs              ) = vr_stubRefs              ;
-    //*(reader.vr_superstripIdsBigLeague) = vr_superstripIdsBigLeague;
+    *(reader.vr_patternRef         ) = vr_patternRef         ;
+    *(reader.vr_tower              ) = vr_tower              ;
+    *(reader.vr_nstubs             ) = vr_nstubs             ;
+    *(reader.vr_patternInvPt       ) = vr_patternInvPt       ;
+    *(reader.vr_patternFreq        ) = vr_patternFreq        ;
+    *(reader.vr_superstripIds      ) = vr_superstripIds      ;
+    *(reader.vr_stubRefs           ) = vr_stubRefs           ;
+    //*(reader.vr_superstripIdsUnited) = vr_superstripIdsUnited;
 
     writer.fill();
 
@@ -323,7 +328,7 @@ void RoadMerging::mergeRoads(
 
   const unsigned nroads = roads.size();
 
-  unsigned stoppingPatternInd = merged_patterns.size();
+  //unsigned stoppingPatternInd = merged_patterns.size();
 
   for (unsigned iroad=0; iroad<nroads; ++iroad) {
     const TTRoad& aroad = roads.at(iroad);
@@ -331,22 +336,22 @@ void RoadMerging::mergeRoads(
     unsigned patternRef       = aroad.patternRef;
     unsigned mergedPatternRef = patterns.at(patternRef).indToMerged;
 
-    if (mergedPatternRef >= stoppingPatternInd)
-      continue;
+    //if (mergedPatternRef >= stoppingPatternInd)
+    //  continue;
 
     std::pair<std::map<unsigned, TTRoad>::iterator, bool> ins = awesome_map.insert(std::make_pair(mergedPatternRef, aroad));
 
     if (ins.second) {  // insert success
       // the first road with this mergedPatternRef
       auto&& amroad = ins.first->second;
-      amroad.patternRef             = mergedPatternRef;
-      //amroad.tower                  = aroad.tower;
-      //amroad.nstubs                 = aroad.nstubs;
-      amroad.patternInvPt           = merged_patterns.at(mergedPatternRef).invPt_mean;
-      amroad.patternFreq            = merged_patterns.at(mergedPatternRef).frequency;
-      //amroad.superstripIds          = aroad.superstripIds;
-      //amroad.stubRefs               = aroad.stubRefs;
-      amroad.superstripIdsBigLeague = merged_patterns.at(mergedPatternRef).superstripIdsBigLeague;
+      amroad.patternRef          = mergedPatternRef;
+      //amroad.tower               = aroad.tower;
+      //amroad.nstubs              = aroad.nstubs;
+      amroad.patternInvPt        = merged_patterns.at(mergedPatternRef).invPt_mean;
+      amroad.patternFreq         = merged_patterns.at(mergedPatternRef).frequency;
+      //amroad.superstripIds       = aroad.superstripIds;
+      //amroad.stubRefs            = aroad.stubRefs;
+      amroad.superstripIdsUnited = merged_patterns.at(mergedPatternRef).superstripIdsUnited;
 
     } else {           // insert fail
       // other roads with this mergedPatternRef
@@ -362,9 +367,18 @@ void RoadMerging::mergeRoads(
         for (unsigned jstub = 0; jstub < stubrefs[ilayer].size(); ++jstub) {
           if (std::find(m_stubrefs[ilayer].begin(), m_stubrefs[ilayer].end(), stubrefs[ilayer][jstub]) == m_stubrefs[ilayer].end()) {
             m_stubrefs[ilayer].push_back(stubrefs[ilayer][jstub]);
-            ++m_nstubs;
           }
         }
+
+        const unsigned maxStubs = 4;
+        if (m_stubrefs[ilayer].size() > maxStubs) {
+          //m_stubrefs[ilayer].resize(maxStubs);  // keep first N stubs
+
+          m_stubrefs[ilayer].erase(m_stubrefs[ilayer].begin(), m_stubrefs[ilayer].end() - maxStubs);  // keep last N stubs
+          assert(m_stubrefs[ilayer].size() == maxStubs);
+        }
+
+        m_nstubs += m_stubrefs[ilayer].size();
       }
     }
   }

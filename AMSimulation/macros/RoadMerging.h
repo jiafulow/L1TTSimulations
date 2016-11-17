@@ -28,7 +28,7 @@ public:
     std::vector<unsigned> superstripIds;
     std::vector<std::vector<unsigned> > stubRefs;  // [layer i][stub j]
 
-    std::vector<std::vector<unsigned> > superstripIdsBigLeague;  // [layer i][superstrip j]
+    std::vector<std::vector<unsigned> > superstripIdsUnited;  // [layer i][superstrip j]
   };
 
   // ___________________________________________________________________________
@@ -58,7 +58,7 @@ public:
     unsigned indToMerged;
 
     // pattern proper big-league (vector of vector of superstrips)
-    std::vector<std::vector<unsigned> > superstripIdsBigLeague;
+    std::vector<std::vector<unsigned> > superstripIdsUnited;
 
     // sibling indices in original frequency-sorted list
     std::vector<unsigned> indFromMerged;
@@ -70,7 +70,7 @@ public:
   RoadMerging();
   ~RoadMerging();
 
-  void process(TString src, TString out, TString bank) const;  //TODO: factor out this guy
+  void process(TString bank, TString src, TString out) const;  //TODO: factor out this guy
 
   void mergeRoads(
       const std::vector<Pattern>& patterns,
