@@ -141,40 +141,42 @@ class ModuleConnection:
 # ______________________________________________________________________________
 # Long functions
 
-def get_phiStar_from_phi(phi, invPt, rStar=rStarPhi):
-  mPtFactor = 0.3*3.8*1e-2/2.0
-  dphi = - asin(mPtFactor * rStar * invPt)
-  return phi + dphi
+def get_phiStar_from_phi(phi, invPt, rStar=90.):
+    mPtFactor = 0.3*3.8*1e-2/2.0
+    if abs(mPtFactor * rStar * invPt) > 1.:
+      raise Exception("track invPt=%f (pt=%f) cannot reach rStar=%f" % (invPt, abs(1.0/invPt), rStar))
+    dphi = - asin(mPtFactor * rStar * invPt)
+    phiStar = phi + dphi
+    while phiStar < -pi:
+      phiStar += pi*2.
+    while phiStar >= pi:
+      phiStar -= pi*2.
+    return phiStar
 
-def get_etaStar_from_eta(eta, vz, invPt, rStar=rStarEta):
-  mPtFactor = 0.3*3.8*1e-2/2.0
-  if abs(invPt) < 1e-10 and invPt <  0.:  invPt = -1e-10
-  if abs(invPt) < 1e-10 and invPt >= 0.:  invPt = +1e-10
-  cot = sinh(eta)
-  cotStar = (cot * (asin(mPtFactor * rStar * invPt)/(mPtFactor * invPt)) + vz) / rStar
-  return asinh(cotStar)
+def get_etaStar_from_eta(eta, z0, invPt, rStar=60.):
+    mPtFactor = 0.3*3.8*1e-2/2.0
+    if abs(rStar) < 1e-10: return eta
+    if abs(invPt) < 1e-10 and invPt <  0.: invPt = -1e-10
+    if abs(invPt) < 1e-10 and invPt >= 0.: invPt = +1e-10
+    cot = sinh(eta)
+    cotStar = (cot * (asin(mPtFactor * rStar * invPt)/(mPtFactor * invPt)) + z0) / rStar
+    return asinh(cotStar)
 
-def track_parameters_to_tt(phi, invPt, eta, vz):
-  max_eta = 2.2
-  max_vz = 15.
-  max_invPt = 1./3
+def TrackParametersToTT(phi, invPt, eta, z0, apply_pt_cut=True):
+    max_eta = 2.2
+    max_z0 = 15.      # [cm]
+    max_invPt = 1./3  # [1/GeV]
+    etaStar = get_etaStar_from_eta(eta, z0, invPt)
+    phiStar = get_phiStar_from_phi(phi, invPt)
+    if abs(etaStar) > max_eta or abs(z0) > max_z0 or (apply_pt_cut and abs(invPt) > max_invPt):
+      return -1
 
-  etaStar = get_etaStar_from_eta(eta, vz, invPt)
-  phiStar = get_phiStar_from_phi(phi, invPt)
-
-  if (abs(etaStar) > max_eta) or (abs(vz) > max_vz) or (abs(invPt) > max_invPt):
-    return -1
-
-  # Bring phi -> [0, 2pi]
-  while phiStar > 2*pi:  phiStar -= 2*pi
-  while phiStar <= 0. :  phiStar += 2*pi
-
-  # Assign trigger tower
-  tt_eta = int((etaStar + max_eta) / (max_eta*2./6))
-  tt_phi = int(phiStar / (pi*2./8))
-  tt = tt_eta * 8 + tt_phi
-  assert(tt<48)
-  return tt
+    tt_eta = int((etaStar + max_eta) / (max_eta*2./6))
+    tt_phi = int((phiStar + pi) / (pi*2./8))
+    tt_phi = (tt_phi + 4) % 8
+    tt = tt_eta * 8 + tt_phi
+    assert(0<=tt and tt<48)
+    return tt
 
 # Loop over input stubs.root, make trigger towers. Each trigger tower contains
 # a list of moduleIds and the (r,phi,z) boundaries of the trigger tower
@@ -193,7 +195,7 @@ def make_trigger_towers():
       charge = evt.genParts_charge[0]
       invPt  = float(charge) / pt
 
-      tt = track_parameters_to_tt(phi, invPt, eta, vz)
+      tt = TrackParametersToTT(phi, invPt, eta, vz)
       if tt == -1:
         pass
       else:
