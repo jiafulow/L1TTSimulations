@@ -3,7 +3,8 @@
 #include <iostream>
 
 //TString filename = "root://cmsxrootd-site.fnal.gov//store/group/l1upgrades/SLHC/GEN/Demo_Emulator/stubs_tt27_300M_emu.root";
-TString filename = "root://xrootd2.ihepa.ufl.edu//store/user/jiafulow/L1TrackTrigger/6_2_0_SLHC25p3/Demo_Emulator/stubs_tt27_300M_emu.root";
+//TString filename = "root://xrootd2.ihepa.ufl.edu//store/user/jiafulow/L1TrackTrigger/6_2_0_SLHC25p3/Demo_Emulator/stubs_tt27_300M_emu.root";
+TString filename = "root://cmsxrootd-site.fnal.gov//store/group/l1upgrades/SLHC/GEN/620_SLHC28p1_results/jftest1/stubs_oc_tt25_100K.root";
 
 
 void analyzeStubs() {
