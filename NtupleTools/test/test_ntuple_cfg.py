@@ -5,7 +5,7 @@ runOnMC = True
 
 from FWCore.ParameterSet.VarParsing import VarParsing
 options = VarParsing('analysis')
-options.setDefault('inputFiles', ['file:relval_tilted.root']
+options.setDefault('inputFiles', ['file:relval_tilted.root'])
 options.setDefault('outputFile', 'ntuple.root')
 options.parseArguments()
 
